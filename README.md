@@ -19,20 +19,22 @@
 
 - **firmware**
 
-
-### Dependencias ROS2
+### Dependencias ubuntu 22.04
 ```bash
 sudo apt update
-sudo apt install -y \
-  ros-humble-xacro \
-  ros-humble-ros2-control
+sudo apt-get install libserial-dev
+```
+
+### Dependencias ROS2 humble
+```bash
+sudo apt install ros-humble-xacro 
+sudo apt install ros-humble-ros2-control
 ```
 
 ### Clonar y compilar
 ```bash
-# crear workspace
-mkdir -p ~/robot_ws/src
-cd ~/robot_ws/src
+# crear carpeta workspace, por ejemplo:
+mkdir robot_ws
 
 # es un repositorio único (contiene tódos los paquetes y drivers), es la carpeta "src/" del proyecto
 git clone https://github.com/pablem/2025-LidarRobot.git
@@ -46,3 +48,9 @@ colcon build --symlink-install
 source install/setup.bash
 
 ```
+
+### Ejecutar
+
+### Uso
+
+
