@@ -29,6 +29,7 @@ sudo apt-get install libserial-dev
 ```bash
 sudo apt install ros-humble-xacro 
 sudo apt install ros-humble-ros2-control
+sudo apt install ros-humble-ros2-controllers
 ```
 
 ### Clonar y compilar
