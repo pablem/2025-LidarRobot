@@ -43,9 +43,9 @@ class NeatoLaserPublisher : public rclcpp::Node
 public:
   NeatoLaserPublisher() : Node("neato_laser_publisher")
   {
-    this->declare_parameter<std::string>("port", "/dev/ttyUSB0");
+    this->declare_parameter<std::string>("port", "/dev/serial/by-id/usb-Arduino_LLC_Arduino_Leonardo-if00");
     this->declare_parameter<int>("baud_rate", 115200);
-    this->declare_parameter<std::string>("frame_id", "neato_laser");
+    this->declare_parameter<std::string>("frame_id", "laser_frame");
     this->declare_parameter<int>("firmware_version", 2);
 
     this->get_parameter("port", port_);
