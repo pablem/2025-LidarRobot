@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "diffdrive_arduino/diffbot_system.hpp"
+#include "diffbot_system.hpp"
 
 #include <chrono>
 #include <cmath>

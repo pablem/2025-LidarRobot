@@ -29,10 +29,10 @@
 #include "rclcpp/time.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
-#include "diffdrive_arduino/visibility_control.h"
+#include "visibility_control.h"
 
-#include "diffdrive_arduino/arduino_comms.hpp"
-#include "diffdrive_arduino/wheel.hpp"
+#include "arduino_comms.hpp"
+#include "wheel.hpp"
 
 namespace diffdrive_arduino
 {
