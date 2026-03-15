@@ -1,6 +1,10 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" >
 
+    <material name="red">
+        <color rgba="1 0 0 1"/>
+    </material>
+
     <joint name="laser_joint" type="fixed">
         <parent link="chassis2"/>
         <child link="laser_frame"/>

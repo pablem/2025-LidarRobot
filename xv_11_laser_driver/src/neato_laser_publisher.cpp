@@ -86,7 +86,9 @@ public:
 
     if (laser_->poll(scan)) {
       scan->header.frame_id = frame_id_;
-      scan->header.stamp = this->now();
+      // scan->header.stamp = this->now();
+      auto now = this->now();
+      scan->header.stamp = now - rclcpp::Duration::from_seconds(scan->scan_time + 0.02);
       laser_pub_->publish(*scan);
     }
 
