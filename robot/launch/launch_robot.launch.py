@@ -59,7 +59,7 @@ def generate_launch_description():
     encoder_reset = ExecuteProcess(
         cmd=[
             'bash', '-c',
-            'stty -F /dev/ttyACM1 57600 raw -echo && printf "r\r" > /dev/ttyACM1'
+            'stty -F /dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_10:20:BA:4D:92:80-if00 57600 raw -echo && printf "r\r" > /dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_10:20:BA:4D:92:80-if00'
         ],
         output='screen',
         name='encoder_reset',
