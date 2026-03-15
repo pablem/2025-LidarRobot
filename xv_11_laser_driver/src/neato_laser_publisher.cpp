@@ -53,7 +53,9 @@ public:
     this->get_parameter("frame_id", frame_id_);
     this->get_parameter("firmware_version", firmware_version_);
 
-    laser_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("scan", 10);
+    // laser_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("scan", 10);
+    rclcpp::QoS qos(rclcpp::KeepLast(50));
+    laser_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("scan", qos);
     motor_pub_ = this->create_publisher<std_msgs::msg::UInt16>("rpms", 10);
 
     try {
@@ -64,25 +66,32 @@ public:
       return;
     }
 
-    timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(100),
-      std::bind(&NeatoLaserPublisher::publish_scan, this)
-    );
+    // timer_ = this->create_wall_timer(
+    //   std::chrono::milliseconds(100),
+    //   std::bind(&NeatoLaserPublisher::publish_scan, this)
+    // );
   }
 
-private:
+public:
   void publish_scan()
   {
     auto scan = std::make_shared<sensor_msgs::msg::LaserScan>();
-    scan->header.frame_id = frame_id_;
-    scan->header.stamp = this->now();
 
-    laser_->poll(scan);
+    // laser_->poll(scan);  // bloquea hasta tener scan real
+
+    // scan->header.frame_id = frame_id_;
+    // scan->header.stamp = this->now();
+
+    // laser_pub_->publish(*scan);
+
+    if (laser_->poll(scan)) {
+      scan->header.frame_id = frame_id_;
+      scan->header.stamp = this->now();
+      laser_pub_->publish(*scan);
+    }
 
     std_msgs::msg::UInt16 rpms_msg;
     rpms_msg.data = laser_->rpms;
-
-    laser_pub_->publish(*scan);
     motor_pub_->publish(rpms_msg);
   }
 
@@ -102,7 +111,11 @@ private:
 int main(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<NeatoLaserPublisher>());
+  // rclcpp::spin(std::make_shared<NeatoLaserPublisher>());
+  auto node = std::make_shared<NeatoLaserPublisher>();
+  while (rclcpp::ok()) {
+    node->publish_scan();
+  }
   rclcpp::shutdown();
   return 0;
 }

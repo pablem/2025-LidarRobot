@@ -50,7 +50,7 @@ public:
     XV11Laser(const std::string& port, uint32_t baud_rate, uint32_t firmware, boost::asio::io_service& io);
     ~XV11Laser() = default;
 
-    void poll(std::shared_ptr<sensor_msgs::msg::LaserScan> scan);
+    bool poll(std::shared_ptr<sensor_msgs::msg::LaserScan> scan);
     void close() { shutting_down_ = true; }
 
 private:

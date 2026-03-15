@@ -44,8 +44,9 @@ namespace xv_11_laser_driver {
 
 
 //   void XV11Laser::poll(sensor_msgs::LaserScan::Ptr scan) {
-  void XV11Laser::poll(std::shared_ptr<sensor_msgs::msg::LaserScan> scan) {
-    uint8_t temp_char;
+  bool XV11Laser::poll(std::shared_ptr<sensor_msgs::msg::LaserScan> scan) {
+    
+	uint8_t temp_char;
     uint8_t start_count = 0;
     bool got_scan = false;
     
@@ -81,7 +82,7 @@ namespace xv_11_laser_driver {
 	    scan->angle_max = 2.0*M_PI;
 	    scan->angle_increment = (2.0*M_PI/360.0);
 	    scan->time_increment = motor_speed_/1e8;
-	    scan->range_min = 0.06;
+	    scan->range_min = 0.1;
 	    scan->range_max = 5.0;
 	    scan->ranges.reserve(360);
 	    scan->intensities.reserve(360);
@@ -93,8 +94,8 @@ namespace xv_11_laser_driver {
 	      uint8_t byte2 = raw_bytes[i+2];
 	      uint8_t byte3 = raw_bytes[i+3];
 	      // First two bits of byte1 are status flags
-	      uint8_t flag1 = (byte1 & 0x80) >> 7;  // No return/max range/too low of reflectivity
-	      uint8_t flag2 = (byte1 & 0x40) >> 6;  // Object too close, possible poor reading due to proximity kicks in at < 0.6m
+	    //   uint8_t flag1 = (byte1 & 0x80) >> 7;  // No return/max range/too low of reflectivity
+	    //   uint8_t flag2 = (byte1 & 0x40) >> 6;  // Object too close, possible poor reading due to proximity kicks in at < 0.6m
 	      // Remaining bits are the range in mm
 	      uint16_t range = ((byte1 & 0x3F)<< 8) + byte0;
 	      // Last two bytes represent the uncertanty or intensity, might also be pixel area of target...
@@ -102,12 +103,15 @@ namespace xv_11_laser_driver {
 
 	      scan->ranges.push_back(range / 1000.0);
 	      scan->intensities.push_back(intensity);
+			return true;
 	    }
 	  }
 	}
       }
     } else if(firmware_ == 2) { // This is for the newer driver that outputs packets 4 pings at a time
-      boost::array<uint8_t, 1980> raw_bytes;
+      
+		boost::array<uint8_t, 1980> raw_bytes;
+
       uint8_t good_sets = 0;
       uint32_t motor_speed = 0;
       rpms=0;
@@ -131,7 +135,7 @@ namespace xv_11_laser_driver {
 	    scan->angle_min = 0.0;
 	    scan->angle_max = 2.0*M_PI;
 	    scan->angle_increment = (2.0*M_PI/360.0);
-	    scan->range_min = 0.06;
+	    scan->range_min = 0.1;
 	    scan->range_max = 5.0;
 	    scan->ranges.resize(360);
 	    scan->intensities.resize(360);
@@ -151,23 +155,37 @@ namespace xv_11_laser_driver {
 		  uint8_t byte2 = raw_bytes[j+2];
 		  uint8_t byte3 = raw_bytes[j+3];
 		  // First two bits of byte1 are status flags
-		  // uint8_t flag1 = (byte1 & 0x80) >> 7;  // No return/max range/too low of reflectivity
-		  // uint8_t flag2 = (byte1 & 0x40) >> 6;  // Object too close, possible poor reading due to proximity kicks in at < 0.6m
+		  uint8_t flag1 = (byte1 & 0x80) >> 7;  // No return/max range/too low of reflectivity
+		  uint8_t flag2 = (byte1 & 0x40) >> 6;  // Object too close, possible poor reading due to proximity kicks in at < 0.6m
 		  // Remaining bits are the range in mm
 		  uint16_t range = ((byte1 & 0x3F)<< 8) + byte0;
 		  // Last two bytes represent the uncertanty or intensity, might also be pixel area of target...
 		  uint16_t intensity = (byte3 << 8) + byte2;
 
-		  scan->ranges[index] = range / 1000.0;
-		  scan->intensities[index] = intensity;
+		//   scan->ranges[index] = range / 1000.0;
+		if (flag1 || flag2 || range == 0) {
+			scan->ranges[index] = std::numeric_limits<float>::infinity();
+		} else {
+			scan->ranges[index] = range / 1000.0;
+		}
+		
+		scan->intensities[index] = intensity;
 		}
 	      }
 	    }
 
-	    scan->time_increment = motor_speed/good_sets/1e8;
+		if (good_sets < 80) {
+			return false; // descartar scan corrupto
+		}
+	    // scan->time_increment = motor_speed/good_sets/1e8;
+		scan->scan_time = 60.0 / rpms;
+		scan->time_increment = scan->scan_time / 360.0;
+		return true;
 	  }
 	}
+	
       }
     }
+	return false;
   }
 };
