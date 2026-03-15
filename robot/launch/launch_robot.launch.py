@@ -4,7 +4,7 @@ from ament_index_python.packages import get_package_share_directory
 
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.actions import IncludeLaunchDescription, TimerAction, ExecuteProcess
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command
 from launch.actions import RegisterEventHandler
@@ -54,6 +54,16 @@ def generate_launch_description():
     )
 
     delayed_controller_manager = TimerAction(period=3.0, actions=[controller_manager])
+
+    # <<< manda 'r' por serial para resetear encoders >>>
+    encoder_reset = ExecuteProcess(
+        cmd=[
+            'bash', '-c',
+            'stty -F /dev/ttyACM1 57600 raw -echo && printf "r\r" > /dev/ttyACM1'
+        ],
+        output='screen',
+        name='encoder_reset',
+    )
 
     diff_drive_spawner = Node(
         package="controller_manager",
@@ -112,6 +122,7 @@ def generate_launch_description():
 
     # Launch them all!
     return LaunchDescription([
+        encoder_reset,
         rsp,
         # joystick,
         twist_mux,
