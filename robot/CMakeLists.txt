@@ -28,4 +28,11 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+# Scripts Python
+install(PROGRAMS
+  scripts/return_to_base.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME return_to_base
+)
+
 ament_package()
