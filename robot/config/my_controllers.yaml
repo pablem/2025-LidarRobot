@@ -19,7 +19,7 @@ diff_cont:
 
     left_wheel_names: ['left_wheel_joint']
     right_wheel_names: ['right_wheel_joint']
-    wheel_separation: 0.415
+    wheel_separation: 0.408 # corrección sobre giro; anterior medido: 0.415
     wheel_radius: 0.055
 
     use_stamped_vel: false
@@ -34,6 +34,8 @@ diff_cont:
     # odom_frame_id: x
     # pose_covariance_diagonal: x
     # twist_covariance_diagonal: x
+    pose_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+    twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
     # open_loop: x
     # enable_odom_tf: x
 

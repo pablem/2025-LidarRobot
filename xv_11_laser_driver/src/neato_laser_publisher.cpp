@@ -76,19 +76,17 @@ public:
   void publish_scan()
   {
     auto scan = std::make_shared<sensor_msgs::msg::LaserScan>();
+    auto t_start = this->now();
 
     // laser_->poll(scan);  // bloquea hasta tener scan real
-
     // scan->header.frame_id = frame_id_;
     // scan->header.stamp = this->now();
-
     // laser_pub_->publish(*scan);
 
     if (laser_->poll(scan)) {
       scan->header.frame_id = frame_id_;
-      // scan->header.stamp = this->now();
-      auto now = this->now();
-      scan->header.stamp = now - rclcpp::Duration::from_seconds(scan->scan_time + 0.02);
+      // scan->header.stamp = this->now() - rclcpp::Duration::from_seconds(scan->scan_time + 0.05);
+      scan->header.stamp = t_start;
       laser_pub_->publish(*scan);
     }
 
@@ -117,6 +115,7 @@ int main(int argc, char **argv)
   auto node = std::make_shared<NeatoLaserPublisher>();
   while (rclcpp::ok()) {
     node->publish_scan();
+    rclcpp::spin_some(node);  // ? ceder el hilo entre scans
   }
   rclcpp::shutdown();
   return 0;

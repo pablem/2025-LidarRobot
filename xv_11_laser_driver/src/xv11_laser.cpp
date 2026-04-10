@@ -83,7 +83,7 @@ namespace xv_11_laser_driver {
 	    scan->angle_increment = (2.0*M_PI/360.0);
 	    scan->time_increment = motor_speed_/1e8;
 	    scan->range_min = 0.1;
-	    scan->range_max = 5.0;
+	    scan->range_max = 3.0; // 5.0;
 	    scan->ranges.reserve(360);
 	    scan->intensities.reserve(360);
 
@@ -174,12 +174,13 @@ namespace xv_11_laser_driver {
 	      }
 	    }
 
-		if (good_sets < 80) {
+		if (good_sets < 85) {
 			return false; // descartar scan corrupto
 		}
 	    // scan->time_increment = motor_speed/good_sets/1e8;
-		scan->scan_time = 60.0 / rpms;
-		scan->time_increment = scan->scan_time / 360.0;
+		float avg_rpm = (motor_speed / good_sets) / 64.0f;
+		scan->scan_time = 60.0f / avg_rpm;
+		scan->time_increment = scan->scan_time / 360.0f;
 		return true;
 	  }
 	}

@@ -21,7 +21,12 @@ def generate_launch_description():
     robot_description_config = xacro.process_file(xacro_file)
     
     # Create a robot_state_publisher node
-    params = {'robot_description': robot_description_config.toxml()}
+    params = {
+        'robot_description': robot_description_config.toxml(),
+        'publish_frequency': 50.0,
+        'tf_buffer_duration': 10.0,
+    }
+
     node_robot_state_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
