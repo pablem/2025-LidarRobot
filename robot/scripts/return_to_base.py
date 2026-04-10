@@ -14,9 +14,7 @@ import os
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
-
 from nav2_msgs.action import NavigateToPose
-from nav2_msgs.srv import ClearEntireCostmap
 from slam_toolbox.srv import SerializePoseGraph
 from geometry_msgs.msg import PoseStamped
 
@@ -27,15 +25,17 @@ class ReturnToBase(Node):
 
         # ── Parámetros configurables ──────────────────────────────────────
         self.declare_parameter('exploration_time', 150.0)
+        # self.declare_parameter('return_delay', 5.0)
         self.declare_parameter('map_dir', '/home/pablo')
         self.declare_parameter('map_base_name', 'labo')
         self.declare_parameter('overwrite_map', False)
         # ─────────────────────────────────────────────────────────────────
 
         self.exploration_time = self.get_parameter('exploration_time').value
-        self.map_dir          = self.get_parameter('map_dir').value
-        self.map_base_name    = self.get_parameter('map_base_name').value
-        self.overwrite_map    = self.get_parameter('overwrite_map').value
+        # self.return_delay = self.get_parameter('return_delay').value
+        self.map_dir = self.get_parameter('map_dir').value
+        self.map_base_name = self.get_parameter('map_base_name').value
+        self.overwrite_map = self.get_parameter('overwrite_map').value
 
         self._nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self._map_client = self.create_client(SerializePoseGraph, '/slam_toolbox/serialize_map')
@@ -55,8 +55,18 @@ class ReturnToBase(Node):
     def _on_exploration_timeout(self):
         self._explore_timer.cancel()
         self.get_logger().info(
-            '[return_to_base] Tiempo de exploración cumplido. Retornando a base...'
+            f'[return_to_base] Tiempo de exploración cumplido. Retornando a base...'        
         )
+        # self._return_delay_timer = self.create_timer(
+        #     self.return_delay,
+        #     self._on_return_delay_timeout
+        # )
+
+    # def _on_return_delay_timeout(self):
+    #     self._return_delay_timer.cancel()
+    #     self.get_logger().info(
+    #         '[return_to_base] Delay cumplido. Enviando goal de retorno a base...'
+    #     )
         self._send_goal_to_base()
 
     # ── 2. Mandar goal (0,0,0) a Nav2 ────────────────────────────────────
@@ -97,20 +107,19 @@ class ReturnToBase(Node):
             self._save_map()
         else:
             self.get_logger().warn(
-                f'[return_to_base] Navegación terminó con status {status}. '
-                f'Reintentando en 5s con costmap limpio...'
+                f'[return_to_base] Navegación terminó con status {status}.'
             )
-            self._clear_costmap_and_retry()
+            # self._clear_costmap_and_retry()
 
-    def _clear_costmap_and_retry(self):
-        clear_client = self.create_client(
-            ClearEntireCostmap,
-            '/global_costmap/clear_entirely_global_costmap'
-        )
-        clear_client.wait_for_service(timeout_sec=5.0)
-        clear_client.call_async(ClearEntireCostmap.Request())
-        self.get_logger().info('[return_to_base] Costmap limpiado. Reintentando goal en 5s...')
-        self.create_timer(5.0, self._send_goal_to_base)
+    # def _clear_costmap_and_retry(self):
+    #     clear_client = self.create_client(
+    #         ClearEntireCostmap,
+    #         '/global_costmap/clear_entirely_global_costmap'
+    #     )
+    #     clear_client.wait_for_service(timeout_sec=5.0)
+    #     clear_client.call_async(ClearEntireCostmap.Request())
+    #     self.get_logger().info('[return_to_base] Costmap limpiado. Reintentando goal en 5s...')
+    #     self.create_timer(5.0, self._send_goal_to_base)
 
     # ── 3. Guardar mapa ───────────────────────────────────────────────────
     def _save_map(self):

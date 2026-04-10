@@ -31,8 +31,9 @@ def generate_launch_description():
             'launch', 'navigation_launch.py'
         )]),
         launch_arguments={
-            'slam_params_file': os.path.join(pkg_share, 'config', 'navegation2_params_waffle_mod.yaml'),
+            'params_file': os.path.join(pkg_share, 'config', 'navegation2_params_waffle_mod.yaml'),
             'use_sim_time': 'false',
+            # 'use_respawn': 'true',   # relanza nodos caídos de Nav2 
         }.items()
     )
 
