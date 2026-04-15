@@ -109,16 +109,51 @@ def generate_launch_description():
     # Replace the diff_drive_spawner in the final return with delayed_diff_drive_spawner
 
     neato_lidar = Node(
-            package='xv_11_laser_driver',
-            executable='neato_laser_publisher',
-            name='neato_laser',
-            output='screen',
-            parameters=[
-                {'port': '/dev/serial/by-id/usb-Arduino_LLC_Arduino_Leonardo-if00'},
-                {'baud_rate': 115200},
-                {'frame_id': 'laser_frame'}
-            ]
-        )
+        package='xv_11_laser_driver',
+        executable='neato_laser_publisher',
+        name='neato_laser',
+        output='screen',
+        parameters=[
+            {'port': '/dev/serial/by-id/usb-Arduino_LLC_Arduino_Leonardo-if00'},
+            {'baud_rate': 115200},
+            {'frame_id': 'laser_frame'}
+        ]
+    )
+
+    mpu9250_driver = Node(
+        package='mpu9250driver',
+        executable='mpu9250driver', 
+        name='mpu9250driver_node',
+        output='screen',
+        parameters=[
+            os.path.join(get_package_share_directory('mpu9250driver'), 'params', 'mpu9250.yaml'),
+            {'frame_id': 'imu_frame'}
+        ]
+    )
+
+    madgwick = Node(
+        package='imu_filter_madgwick',
+        executable='imu_filter_madgwick_node',
+        name='imu_filter_madgwick',
+        output='screen',
+        parameters=[{
+            'use_mag': False,       # Disable magnetometer to avoid issues with magnetic interference in indoor environments
+            'publish_tf': False,
+            'world_frame': 'enu',   # East-North-Up frame, for ground robots
+        }],
+        remappings=[('/imu/data_raw', '/imu')]
+    )
+
+    ekf_node = Node(
+        package='robot_localization',
+        executable='ekf_node',
+        name='ekf_filter_node',
+        output='screen',
+        parameters=[
+            os.path.join(get_package_share_directory(package_name), 'config', 'ekf.yaml'),
+            {'use_sim_time': False}
+        ]
+    )
 
     # Launch them all!
     return LaunchDescription([
@@ -129,5 +164,8 @@ def generate_launch_description():
         neato_lidar,
         delayed_controller_manager,
         delayed_diff_drive_spawner,
-        delayed_joint_broad_spawner
+        delayed_joint_broad_spawner,
+        mpu9250_driver,      
+        madgwick,            
+        ekf_node,
     ])

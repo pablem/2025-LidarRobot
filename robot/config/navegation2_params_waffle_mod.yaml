@@ -174,11 +174,11 @@ controller_server:
       # turtlebot3 waffle: 0.22 m/s
       min_vel_x: 0.0
       min_vel_y: 0.0
-      max_vel_x: 0.3       
+      max_vel_x: 0.22       
       max_vel_y: 0.0        
       max_vel_theta: 1.0    
       min_speed_xy: 0.0
-      max_speed_xy: 0.3    # igual que max_vel_x
+      max_speed_xy: 0.22    # igual que max_vel_x
       min_speed_theta: 0.0
 
       # ── ACELERACIONES ─────────────────────────────────────────────────────
@@ -249,8 +249,8 @@ local_costmap:
       # ── RADIO DEL ROBOT ───────────────────────────────────────────────────
       # robot_radius: 0.225
       # Usar footprint en lugar de robot_radius; ancho 0.45 y largo 0.35
-      # footprint: "[ [-0.175, -0.225], [-0.175, 0.225], [0.175, 0.225], [0.175, -0.225] ]"
-      footprint: "[ [-0.05, -0.225], [-0.05, 0.225], [0.27, 0.225], [0.27, -0.225] ]"
+      # footprint: "[ [-0.175, -0.23], [-0.175, 0.23], [0.175, 0.23], [0.175, -0.23] ]"
+      footprint: "[ [-0.05, -0.23], [-0.05, 0.23], [0.27, 0.23], [0.27, -0.23] ]"
       # ── CAPAS DEL COSTMAP ─────────────────────────────────────────────────
       # obstacle_layer: obstáculos 2D detectados por el lidar 
       # voxel_layer: obstáculos 3D (no usar, para cámaras, sensores 3D)
@@ -261,7 +261,7 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.4    # margen (en metros) que agrega alrededor de obstáculos.
+        inflation_radius: 0.7    # margen (en metros) que agrega alrededor de obstáculos.
         cost_scaling_factor: 3.0 # qué tan rápido decrece el coste con la distancia
 
       obstacle_layer:
@@ -319,8 +319,8 @@ global_costmap:
       # ── RADIO DEL ROBOT (global) ──────────────────────────────────────────
       # Mismo valor que en local_costmap.
       # robot_radius: 0.225
-      # footprint: "[ [-0.175, -0.225], [-0.175, 0.225], [0.175, 0.225], [0.175, -0.225] ]"
-      footprint: "[ [-0.05, -0.225], [-0.05, 0.225], [0.27, 0.225], [0.27, -0.225] ]"
+      # footprint: "[ [-0.175, -0.23], [-0.175, 0.23], [0.175, 0.23], [0.175, -0.23] ]"
+      footprint: "[ [-0.05, -0.23], [-0.05, 0.23], [0.27, 0.23], [0.27, -0.23] ]"
 
       resolution: 0.05
       track_unknown_space: true
@@ -373,7 +373,7 @@ global_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
         # inflation_radius global: puede ser menor que el local.
-        inflation_radius: 0.4 
+        inflation_radius: 0.7 
 
       always_send_full_costmap: True
 
