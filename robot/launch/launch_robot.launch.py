@@ -13,7 +13,6 @@ from launch.event_handlers import OnProcessStart
 from launch_ros.actions import Node
 
 
-
 def generate_launch_description():
 
 
@@ -91,7 +90,6 @@ def generate_launch_description():
         )
     )
 
-
     # Code for delaying a node (I haven't tested how effective it is)
     # 
     # First add the below lines to imports
@@ -137,11 +135,15 @@ def generate_launch_description():
         name='imu_filter_madgwick',
         output='screen',
         parameters=[{
-            'use_mag': False,       # Disable magnetometer to avoid issues with magnetic interference in indoor environments
-            'publish_tf': False,
+            'use_mag': True,       
             'world_frame': 'enu',   # East-North-Up frame, for ground robots
         }],
-        remappings=[('/imu/data_raw', '/imu')]
+        # remappings=[('/imu/data_raw', '/imu')]
+    )
+
+    delayed_madgwick = TimerAction(
+        period=2.0,
+        actions=[madgwick]
     )
 
     ekf_node = Node(
@@ -155,6 +157,11 @@ def generate_launch_description():
         ]
     )
 
+    delayed_ekf = TimerAction(
+        period=3.0,
+        actions=[ekf_node]
+    )
+
     # Launch them all!
     return LaunchDescription([
         encoder_reset,
@@ -166,6 +173,6 @@ def generate_launch_description():
         delayed_diff_drive_spawner,
         delayed_joint_broad_spawner,
         mpu9250_driver,      
-        madgwick,            
-        ekf_node,
+        delayed_madgwick,            
+        delayed_ekf,
     ])

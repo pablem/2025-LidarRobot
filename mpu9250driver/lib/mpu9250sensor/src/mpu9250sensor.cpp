@@ -150,111 +150,198 @@ void MPU9250Sensor::setDlpfBandwidth(DlpfBandwidth bandwidth)
   dlpf_range_ = DLPF_RANGES[static_cast<size_t>(bandwidth)];
 }
 
-double MPU9250Sensor::getAccelerationX() const
+void MPU9250Sensor::getAcceleration(double &ax, double &ay, double &az)
 {
-  int16_t accel_x_msb = i2cBus_->read(ACCEL_XOUT_H);
-  int16_t accel_x_lsb = i2cBus_->read(ACCEL_XOUT_H + 1);
-  int16_t accel_x = accel_x_lsb | accel_x_msb << 8;
-  double accel_x_converted = convertRawAccelerometerData(accel_x);
-  if (calibrated_) {
-    return accel_x_converted - accel_x_offset_;
+  uint8_t buf[6];
+  for (int i = 0; i < 6; ++i) {
+    buf[i] = i2cBus_->read(ACCEL_XOUT_H + i);
   }
-  return accel_x_converted;
+
+  int16_t raw_x = (buf[0] << 8) | buf[1];
+  int16_t raw_y = (buf[2] << 8) | buf[3];
+  int16_t raw_z = (buf[4] << 8) | buf[5];
+
+  ax = convertRawAccelerometerData(raw_x);
+  ay = convertRawAccelerometerData(raw_y);
+  az = convertRawAccelerometerData(raw_z);
+
+  if (calibrated_) {
+    ax -= accel_x_offset_;
+    ay -= accel_y_offset_;
+    az -= accel_z_offset_;
+  }
+}
+/* (legacy work) */
+// double MPU9250Sensor::getAccelerationX() const
+// {
+//   int16_t accel_x_msb = i2cBus_->read(ACCEL_XOUT_H);
+//   int16_t accel_x_lsb = i2cBus_->read(ACCEL_XOUT_H + 1);
+//   int16_t accel_x = accel_x_lsb | accel_x_msb << 8;
+//   double accel_x_converted = convertRawAccelerometerData(accel_x);
+//   if (calibrated_) {
+//     return accel_x_converted - accel_x_offset_;
+//   }
+//   return accel_x_converted;
+// }
+
+// double MPU9250Sensor::getAccelerationY() const
+// {
+//   int16_t accel_y_msb = i2cBus_->read(ACCEL_YOUT_H);
+//   int16_t accel_y_lsb = i2cBus_->read(ACCEL_YOUT_H + 1);
+//   int16_t accel_y = accel_y_lsb | accel_y_msb << 8;
+//   double accel_y_converted = convertRawAccelerometerData(accel_y);
+//   if (calibrated_) {
+//     return accel_y_converted - accel_y_offset_;
+//   }
+//   return accel_y_converted;
+// }
+
+// double MPU9250Sensor::getAccelerationZ() const
+// {
+//   int16_t accel_z_msb = i2cBus_->read(ACCEL_ZOUT_H);
+//   int16_t accel_z_lsb = i2cBus_->read(ACCEL_ZOUT_H + 1);
+//   int16_t accel_z = accel_z_lsb | accel_z_msb << 8;
+//   double accel_z_converted = convertRawAccelerometerData(accel_z);
+//   if (calibrated_) {
+//     return accel_z_converted - accel_z_offset_;
+//   }
+//   return accel_z_converted;
+// }
+
+void MPU9250Sensor::getAngularVelocity(double &gx, double &gy, double &gz)
+{
+  uint8_t buf[6];
+  for (int i = 0; i < 6; ++i) {
+    buf[i] = i2cBus_->read(GYRO_XOUT_H + i);
+  }
+
+  int16_t raw_x = (buf[0] << 8) | buf[1];
+  int16_t raw_y = (buf[2] << 8) | buf[3];
+  int16_t raw_z = (buf[4] << 8) | buf[5];
+
+  gx = convertRawGyroscopeData(raw_x);
+  gy = convertRawGyroscopeData(raw_y);
+  gz = convertRawGyroscopeData(raw_z);
+
+  if (calibrated_) {
+    gx -= gyro_x_offset_;
+    gy -= gyro_y_offset_;
+    gz -= gyro_z_offset_;
+  }
 }
 
-double MPU9250Sensor::getAccelerationY() const
-{
-  int16_t accel_y_msb = i2cBus_->read(ACCEL_YOUT_H);
-  int16_t accel_y_lsb = i2cBus_->read(ACCEL_YOUT_H + 1);
-  int16_t accel_y = accel_y_lsb | accel_y_msb << 8;
-  double accel_y_converted = convertRawAccelerometerData(accel_y);
-  if (calibrated_) {
-    return accel_y_converted - accel_y_offset_;
-  }
-  return accel_y_converted;
-}
+// double MPU9250Sensor::getAngularVelocityX() const
+// {
+//   int16_t gyro_x_msb = i2cBus_->read(GYRO_XOUT_H);
+//   int16_t gyro_x_lsb = i2cBus_->read(GYRO_XOUT_H + 1);
+//   int16_t gyro_x = gyro_x_lsb | gyro_x_msb << 8;
+//   double gyro_x_converted = convertRawGyroscopeData(gyro_x);
+//   if (calibrated_) {
+//     return gyro_x_converted - gyro_x_offset_;
+//   }
+//   return gyro_x_converted;
+// }
 
-double MPU9250Sensor::getAccelerationZ() const
-{
-  int16_t accel_z_msb = i2cBus_->read(ACCEL_ZOUT_H);
-  int16_t accel_z_lsb = i2cBus_->read(ACCEL_ZOUT_H + 1);
-  int16_t accel_z = accel_z_lsb | accel_z_msb << 8;
-  double accel_z_converted = convertRawAccelerometerData(accel_z);
-  if (calibrated_) {
-    return accel_z_converted - accel_z_offset_;
-  }
-  return accel_z_converted;
-}
+// double MPU9250Sensor::getAngularVelocityY() const
+// {
+//   int16_t gyro_y_msb = i2cBus_->read(GYRO_YOUT_H);
+//   int16_t gyro_y_lsb = i2cBus_->read(GYRO_YOUT_H + 1);
+//   int16_t gyro_y = gyro_y_lsb | gyro_y_msb << 8;
+//   double gyro_y_converted = convertRawGyroscopeData(gyro_y);
+//   if (calibrated_) {
+//     return gyro_y_converted - gyro_y_offset_;
+//   }
+//   return gyro_y_converted;
+// }
 
-double MPU9250Sensor::getAngularVelocityX() const
-{
-  int16_t gyro_x_msb = i2cBus_->read(GYRO_XOUT_H);
-  int16_t gyro_x_lsb = i2cBus_->read(GYRO_XOUT_H + 1);
-  int16_t gyro_x = gyro_x_lsb | gyro_x_msb << 8;
-  double gyro_x_converted = convertRawGyroscopeData(gyro_x);
-  if (calibrated_) {
-    return gyro_x_converted - gyro_x_offset_;
-  }
-  return gyro_x_converted;
-}
+// double MPU9250Sensor::getAngularVelocityZ() const
+// {
+//   int16_t gyro_z_msb = i2cBus_->read(GYRO_ZOUT_H);
+//   int16_t gyro_z_lsb = i2cBus_->read(GYRO_ZOUT_H + 1);
+//   int16_t gyro_z = gyro_z_lsb | gyro_z_msb << 8;
+//   double gyro_z_converted = convertRawGyroscopeData(gyro_z);
+//   if (calibrated_) {
+//     return gyro_z_converted - gyro_z_offset_;
+//   }
+//   return gyro_z_converted;
+// }
 
-double MPU9250Sensor::getAngularVelocityY() const
+void MPU9250Sensor::getMagneticField(double &mx, double &my, double &mz)
 {
-  int16_t gyro_y_msb = i2cBus_->read(GYRO_YOUT_H);
-  int16_t gyro_y_lsb = i2cBus_->read(GYRO_YOUT_H + 1);
-  int16_t gyro_y = gyro_y_lsb | gyro_y_msb << 8;
-  double gyro_y_converted = convertRawGyroscopeData(gyro_y);
-  if (calibrated_) {
-    return gyro_y_converted - gyro_y_offset_;
-  }
-  return gyro_y_converted;
-}
-
-double MPU9250Sensor::getAngularVelocityZ() const
-{
-  int16_t gyro_z_msb = i2cBus_->read(GYRO_ZOUT_H);
-  int16_t gyro_z_lsb = i2cBus_->read(GYRO_ZOUT_H + 1);
-  int16_t gyro_z = gyro_z_lsb | gyro_z_msb << 8;
-  double gyro_z_converted = convertRawGyroscopeData(gyro_z);
-  if (calibrated_) {
-    return gyro_z_converted - gyro_z_offset_;
-  }
-  return gyro_z_converted;
-}
-
-double MPU9250Sensor::getMagneticFluxDensityX() const
-{
-  // TODO: check for overflow of magnetic sensor
   initMagnI2c();
-  int16_t magn_flux_x_msb = i2cBus_->read(MAGN_XOUT_L + 1);
-  int16_t magn_flux_x_lsb = i2cBus_->read(MAGN_XOUT_L);
-  int16_t magn_flux_x = magn_flux_x_lsb | magn_flux_x_msb << 8;
-  double magn_flux_x_converted = convertRawMagnetometerData(magn_flux_x);
+
+  // Check data ready
+  uint8_t st1 = i2cBus_->read(AK8963_ST1);
+  if (!(st1 & 0x01)) {
+    mx = my = mz = 0;
+    initImuI2c();
+    return;
+  }
+
+  uint8_t buffer[6];
+  for (int i = 0; i < 6; ++i) {
+    buffer[i] = i2cBus_->read(MAGN_XOUT_L + i);
+  }
+
+  int16_t raw_x = buffer[0] | (buffer[1] << 8);
+  int16_t raw_y = buffer[2] | (buffer[3] << 8);
+  int16_t raw_z = buffer[4] | (buffer[5] << 8);
+
+  // Overflow check (ST2)
+  uint8_t st2 = i2cBus_->read(AK8963_ST2);
+  if (st2 & 0x08) {
+    mx = my = mz = 0;
+    initImuI2c();
+    return;
+  }
+
+  // Convert to microtesla 
+  double mx_uT = convertRawMagnetometerData(raw_x);
+  double my_uT = convertRawMagnetometerData(raw_y);
+  double mz_uT = convertRawMagnetometerData(raw_z);
+
+  // REP-103 (ROS Units Standard)
+  // Convert from microtesla (µT) to Tesla (T)
+  mx = mx_uT * 1e-6 - mag_x_offset_;
+  my = my_uT * 1e-6 - mag_y_offset_;
+  mz = mz_uT * 1e-6 - mag_z_offset_;
+
   initImuI2c();
-  return magn_flux_x_converted;
 }
 
-double MPU9250Sensor::getMagneticFluxDensityY() const
-{
-  initMagnI2c();
-  int16_t magn_flux_y_msb = i2cBus_->read(MAGN_YOUT_L + 1);
-  int16_t magn_flux_y_lsb = i2cBus_->read(MAGN_YOUT_L);
-  int16_t magn_flux_y = magn_flux_y_lsb | magn_flux_y_msb << 8;
-  double magn_flux_y_converted = convertRawMagnetometerData(magn_flux_y);
-  initImuI2c();
-  return magn_flux_y_converted;
-}
+// double MPU9250Sensor::getMagneticFluxDensityX() const
+// {
+//   // TODO: check for overflow of magnetic sensor
+//   initMagnI2c();
+//   int16_t magn_flux_x_msb = i2cBus_->read(MAGN_XOUT_L + 1);
+//   int16_t magn_flux_x_lsb = i2cBus_->read(MAGN_XOUT_L);
+//   int16_t magn_flux_x = magn_flux_x_lsb | magn_flux_x_msb << 8;
+//   double magn_flux_x_converted = convertRawMagnetometerData(magn_flux_x);
+//   initImuI2c();
+//   return magn_flux_x_converted;
+// }
 
-double MPU9250Sensor::getMagneticFluxDensityZ() const
-{
-  initMagnI2c();
-  int16_t magn_flux_z_msb = i2cBus_->read(MAGN_ZOUT_L + 1);
-  int16_t magn_flux_z_lsb = i2cBus_->read(MAGN_ZOUT_L);
-  int16_t magn_flux_z = magn_flux_z_lsb | magn_flux_z_msb << 8;
-  double magn_flux_z_converted = convertRawMagnetometerData(magn_flux_z);
-  initImuI2c();
-  return magn_flux_z_converted;
-}
+// double MPU9250Sensor::getMagneticFluxDensityY() const
+// {
+//   initMagnI2c();
+//   int16_t magn_flux_y_msb = i2cBus_->read(MAGN_YOUT_L + 1);
+//   int16_t magn_flux_y_lsb = i2cBus_->read(MAGN_YOUT_L);
+//   int16_t magn_flux_y = magn_flux_y_lsb | magn_flux_y_msb << 8;
+//   double magn_flux_y_converted = convertRawMagnetometerData(magn_flux_y);
+//   initImuI2c();
+//   return magn_flux_y_converted;
+// }
+
+// double MPU9250Sensor::getMagneticFluxDensityZ() const
+// {
+//   initMagnI2c();
+//   int16_t magn_flux_z_msb = i2cBus_->read(MAGN_ZOUT_L + 1);
+//   int16_t magn_flux_z_lsb = i2cBus_->read(MAGN_ZOUT_L);
+//   int16_t magn_flux_z = magn_flux_z_lsb | magn_flux_z_msb << 8;
+//   double magn_flux_z_converted = convertRawMagnetometerData(magn_flux_z);
+//   initImuI2c();
+//   return magn_flux_z_converted;
+// }
 
 double MPU9250Sensor::convertRawGyroscopeData(int16_t gyro_raw) const
 {
@@ -293,17 +380,41 @@ void MPU9250Sensor::setAccelerometerOffset(double accel_x_offset, double accel_y
   accel_z_offset_ = accel_z_offset;
 }
 
+void MPU9250Sensor::setMagnetometerOffset(double mag_x_offset, double mag_y_offset, 
+                                          double mag_z_offset)
+{
+  mag_x_offset_ = mag_x_offset;
+  mag_y_offset_ = mag_y_offset;
+  mag_z_offset_ = mag_z_offset;
+}
+
 void MPU9250Sensor::calibrate()
 {
   int count = 0;
+  // Reset offsets
+  gyro_x_offset_ = 0.0;
+  gyro_y_offset_ = 0.0;
+  gyro_z_offset_ = 0.0;
+  accel_x_offset_ = 0.0;
+  accel_y_offset_ = 0.0;
+  accel_z_offset_ = 0.0;
+
   while (count < CALIBRATION_COUNT) {
-    gyro_x_offset_ += getAngularVelocityX();
-    gyro_y_offset_ += getAngularVelocityY();
-    gyro_z_offset_ += getAngularVelocityZ();
-    accel_x_offset_ += getAccelerationX();
-    accel_y_offset_ += getAccelerationY();
-    accel_z_offset_ += getAccelerationZ();
+    double ax, ay, az;
+    double gx, gy, gz;
+    // Read in block 
+    getAcceleration(ax, ay, az);
+    getAngularVelocity(gx, gy, gz);
+    gyro_x_offset_ += gx;
+    gyro_y_offset_ += gy;
+    gyro_z_offset_ += gz;
+    accel_x_offset_ += ax;
+    accel_y_offset_ += ay;
+    accel_z_offset_ += az;
+
     ++count;
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
   }
   gyro_x_offset_ /= CALIBRATION_COUNT;
   gyro_y_offset_ /= CALIBRATION_COUNT;
@@ -311,6 +422,29 @@ void MPU9250Sensor::calibrate()
   accel_x_offset_ /= CALIBRATION_COUNT;
   accel_y_offset_ /= CALIBRATION_COUNT;
   accel_z_offset_ /= CALIBRATION_COUNT;
+  // Remove gravity from Z axis
   accel_z_offset_ -= GRAVITY;
   calibrated_ = true;
 }
+
+// void MPU9250Sensor::calibrate()
+// {
+//   int count = 0;
+//   while (count < CALIBRATION_COUNT) {
+//     gyro_x_offset_ += getAngularVelocityX();
+//     gyro_y_offset_ += getAngularVelocityY();
+//     gyro_z_offset_ += getAngularVelocityZ();
+//     accel_x_offset_ += getAccelerationX();
+//     accel_y_offset_ += getAccelerationY();
+//     accel_z_offset_ += getAccelerationZ();
+//     ++count;
+//   }
+//   gyro_x_offset_ /= CALIBRATION_COUNT;
+//   gyro_y_offset_ /= CALIBRATION_COUNT;
+//   gyro_z_offset_ /= CALIBRATION_COUNT;
+//   accel_x_offset_ /= CALIBRATION_COUNT;
+//   accel_y_offset_ /= CALIBRATION_COUNT;
+//   accel_z_offset_ /= CALIBRATION_COUNT;
+//   accel_z_offset_ -= GRAVITY;
+//   calibrated_ = true;
+// }

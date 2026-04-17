@@ -28,17 +28,21 @@ class MPU9250Sensor {
   void setGyroscopeRange(GyroRange range);
   void setAccelerometerRange(AccelRange range);
   void setDlpfBandwidth(DlpfBandwidth bandwidth);
-  double getAccelerationX() const;
-  double getAccelerationY() const;
-  double getAccelerationZ() const;
-  double getAngularVelocityX() const;
-  double getAngularVelocityY() const;
-  double getAngularVelocityZ() const;
-  double getMagneticFluxDensityX() const;
-  double getMagneticFluxDensityY() const;
-  double getMagneticFluxDensityZ() const;
+  void getAcceleration(double &ax, double &ay, double &az);
+  void getAngularVelocity(double &gx, double &gy, double &gz);
+  // double getAccelerationX() const;
+  // double getAccelerationY() const;
+  // double getAccelerationZ() const;
+  // double getAngularVelocityX() const;
+  // double getAngularVelocityY() const;
+  // double getAngularVelocityZ() const;
+  void getMagneticField(double &mx, double &my, double &mz);
+  // double getMagneticFluxDensityX() const;
+  // double getMagneticFluxDensityY() const;
+  // double getMagneticFluxDensityZ() const;
   void setGyroscopeOffset(double gyro_x_offset, double gyro_y_offset, double gyro_z_offset);
   void setAccelerometerOffset(double accel_x_offset, double accel_y_offset, double accel_z_offset);
+  void setMagnetometerOffset(double mag_x_offset, double mag_y_offset, double mag_z_offset);
   void calibrate();
 
  private:
@@ -64,8 +68,13 @@ class MPU9250Sensor {
   double accel_x_offset_{0.0};
   double accel_y_offset_{0.0};
   double accel_z_offset_{0.0};
+  double mag_x_offset_{0.0};
+  double mag_y_offset_{0.0};
+  double mag_z_offset_{0.0};
 
   // MPU9250 registers and addresses (s. datasheet for details)
+  static constexpr int AK8963_ST1 = 0x02;
+  static constexpr int AK8963_ST2 = 0x09;
   static constexpr int MPU9250_ADDRESS_DEFAULT = 0x68;
   static constexpr int AK8963_ADDRESS_DEFAULT = 0x0C;
   static constexpr int MPU9250_USER_CTRL = 0x6A;
