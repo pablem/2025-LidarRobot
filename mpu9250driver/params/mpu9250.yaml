@@ -14,4 +14,7 @@ mpu9250driver_node:
     accel_x_offset: 0.0 # [m/s²]
     accel_y_offset: 0.0 # [m/s²]
     accel_z_offset: 0.0 # [m/s²]
+    mag_x_offset: 2.86875e-05 # [T]
+    mag_y_offset: 2.4583984375e-05  # [T]
+    mag_z_offset: -2.5927734375e-05 # [T]
     frequency: 100 # [Hz]

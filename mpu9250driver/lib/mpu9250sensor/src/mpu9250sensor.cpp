@@ -19,6 +19,8 @@ MPU9250Sensor::MPU9250Sensor(std::unique_ptr<I2cCommunicator> i2cBus) : i2cBus_(
   }
   // Enable bypass mode for magnetometer
   enableBypassMode();
+  // Read magnetometer adjustment values for later use in conversion
+  readMagAdjustmentValues(); 
   // Set magnetometer to 100 Hz continuous measurement mode
   setContinuousMeasurementMode100Hz();
   // Read current ranges from sensor
@@ -295,16 +297,20 @@ void MPU9250Sensor::getMagneticField(double &mx, double &my, double &mz)
     return;
   }
 
-  // Convert to microtesla 
-  double mx_uT = convertRawMagnetometerData(raw_x);
-  double my_uT = convertRawMagnetometerData(raw_y);
-  double mz_uT = convertRawMagnetometerData(raw_z);
-
   // REP-103 (ROS Units Standard)
-  // Convert from microtesla (µT) to Tesla (T)
-  mx = mx_uT * 1e-6 - mag_x_offset_;
-  my = my_uT * 1e-6 - mag_y_offset_;
-  mz = mz_uT * 1e-6 - mag_z_offset_;
+  // Convert raw magnetomer data to Tesla (T)
+  double mx_T = raw_x * MAX_CONV_MAGN_FLUX / MAX_RAW_MAGN_FLUX * 1e-6 * mag_adj_x_;
+  double my_T = raw_y * MAX_CONV_MAGN_FLUX / MAX_RAW_MAGN_FLUX * 1e-6 * mag_adj_y_;
+  double mz_T = raw_z * MAX_CONV_MAGN_FLUX / MAX_RAW_MAGN_FLUX * 1e-6 * mag_adj_z_;
+
+  // (microtesla) 
+  // double mx_uT = convertRawMagnetometerData(raw_x);
+  // double my_uT = convertRawMagnetometerData(raw_y);
+  // double mz_uT = convertRawMagnetometerData(raw_z);
+
+  mx = mx_T - mag_x_offset_;
+  my = my_T - mag_y_offset_;
+  mz = mz_T - mag_z_offset_;
 
   initImuI2c();
 }
@@ -350,12 +356,12 @@ double MPU9250Sensor::convertRawGyroscopeData(int16_t gyro_raw) const
   return ang_vel_in_deg_per_s * 3.14159 / 180.0; // radians
 }
 
-double MPU9250Sensor::convertRawMagnetometerData(int16_t flux_raw) const
-{
-  const double magn_flux_in_mu_tesla =
-      static_cast<double>(flux_raw) * MAX_CONV_MAGN_FLUX / MAX_RAW_MAGN_FLUX;
-  return magn_flux_in_mu_tesla;
-}
+// double MPU9250Sensor::convertRawMagnetometerData(int16_t flux_raw) const
+// {
+//   const double magn_flux_in_mu_tesla =
+//       static_cast<double>(flux_raw) * MAX_CONV_MAGN_FLUX / MAX_RAW_MAGN_FLUX;
+//   return magn_flux_in_mu_tesla;
+// }
 
 double MPU9250Sensor::convertRawAccelerometerData(int16_t accel_raw) const
 {
@@ -386,6 +392,48 @@ void MPU9250Sensor::setMagnetometerOffset(double mag_x_offset, double mag_y_offs
   mag_x_offset_ = mag_x_offset;
   mag_y_offset_ = mag_y_offset;
   mag_z_offset_ = mag_z_offset;
+}
+
+void MPU9250Sensor::readMagAdjustmentValues()
+{
+  initMagnI2c();
+
+  // Set to power-down mode before switching to another mode
+  int result = i2cBus_->write(MAGN_MEAS_MODE, 0x00);
+  if (result < 0)
+  {
+    std::cerr << "Error powering down magnometer" << std::endl;
+  }
+  // Wait until mode changes
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  // Enter Fuse ROM access mode
+  result = i2cBus_->write(MAGN_MEAS_MODE, 0x0F);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  if (result < 0)
+  {
+    std::cerr << "Error entering Fuse ROM access mode" << std::endl;
+  }
+
+  // Read ASA registers
+  uint8_t asax = i2cBus_->read(ASAX);
+  uint8_t asay = i2cBus_->read(ASAY);
+  uint8_t asaz = i2cBus_->read(ASAZ);
+
+  // Convert to adjustment factors
+  mag_adj_x_ = ((asax - 128) / 256.0) + 1.0;
+  mag_adj_y_ = ((asay - 128) / 256.0) + 1.0;
+  mag_adj_z_ = ((asaz - 128) / 256.0) + 1.0;
+
+  // Back to power down
+  result = i2cBus_->write(MAGN_MEAS_MODE, 0x00);
+  if (result < 0)
+  {
+    std::cerr << "Error powering down magnometer" << std::endl;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  initImuI2c();
 }
 
 void MPU9250Sensor::calibrate()
