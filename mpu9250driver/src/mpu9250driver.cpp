@@ -52,14 +52,6 @@ void MPU9250Driver::handleInput()
   auto imu_msg = sensor_msgs::msg::Imu();
   auto mag_msg = sensor_msgs::msg::MagneticField();
 
-  auto now = this->get_clock()->now();
-
-  imu_msg.header.stamp = now;
-  imu_msg.header.frame_id = "imu_link";
-
-  mag_msg.header.stamp = now;
-  mag_msg.header.frame_id = "imu_link";
-
   // -------- IMU RAW --------
   double ax, ay, az;
   double gx, gy, gz;
@@ -108,6 +100,14 @@ void MPU9250Driver::handleInput()
     0, 0.01, 0,
     0, 0, 0.01
   };
+
+  auto now = this->get_clock()->now();
+
+  imu_msg.header.stamp = now;
+  imu_msg.header.frame_id = "imu_link";
+
+  mag_msg.header.stamp = now;
+  mag_msg.header.frame_id = "imu_link";
 
   // Publish messages
   imu_pub_->publish(imu_msg);

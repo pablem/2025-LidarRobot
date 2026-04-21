@@ -160,11 +160,12 @@ controller_server:
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
+
       # ── TOLERANCIA DE LLEGADA AL OBJETIVO ────────────────────────────────
-      # es razonable. Bajar a 0.15 para más precisión
-      xy_goal_tolerance: 0.25
+      # Bajar para más precisión
+      xy_goal_tolerance: 0.2 # 0.25
       # Tolerancia angular al llegar al goal (radianes). 0.25 rad ≈ 14°.
-      yaw_goal_tolerance: 0.25
+      yaw_goal_tolerance: 0.2 # 0.25
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
@@ -214,7 +215,7 @@ controller_server:
       # Estos puntajes determinan cómo DWB elige la mejor trayectoria.
       # Los valores son estándar
       critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
-      BaseObstacle.scale: 0.02
+      BaseObstacle.scale: 0.2 # 0.02 es muy bajo, se choca
       PathAlign.scale: 32.0
       PathAlign.forward_point_distance: 0.1
       GoalAlign.scale: 24.0
@@ -250,7 +251,7 @@ local_costmap:
       # robot_radius: 0.225
       # Usar footprint en lugar de robot_radius; ancho 0.45 y largo 0.35
       # footprint: "[ [-0.175, -0.23], [-0.175, 0.23], [0.175, 0.23], [0.175, -0.23] ]"
-      footprint: "[ [-0.05, -0.23], [-0.05, 0.23], [0.27, 0.23], [0.27, -0.23] ]"
+      footprint: "[ [-0.05, -0.235], [-0.05, 0.23], [0.27, 0.23], [0.27, -0.235] ]"
       # ── CAPAS DEL COSTMAP ─────────────────────────────────────────────────
       # obstacle_layer: obstáculos 2D detectados por el lidar 
       # voxel_layer: obstáculos 3D (no usar, para cámaras, sensores 3D)
@@ -261,7 +262,7 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.7    # margen (en metros) que agrega alrededor de obstáculos.
+        inflation_radius: 0.5    # margen (en metros) que agrega alrededor de obstáculos.
         cost_scaling_factor: 3.0 # qué tan rápido decrece el coste con la distancia
 
       obstacle_layer:
@@ -320,7 +321,7 @@ global_costmap:
       # Mismo valor que en local_costmap.
       # robot_radius: 0.225
       # footprint: "[ [-0.175, -0.23], [-0.175, 0.23], [0.175, 0.23], [0.175, -0.23] ]"
-      footprint: "[ [-0.05, -0.23], [-0.05, 0.23], [0.27, 0.23], [0.27, -0.23] ]"
+      footprint: "[ [-0.05, -0.235], [-0.05, 0.23], [0.27, 0.23], [0.27, -0.235] ]"
 
       resolution: 0.05
       track_unknown_space: true
@@ -373,7 +374,7 @@ global_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
         # inflation_radius global: puede ser menor que el local.
-        inflation_radius: 0.7 
+        inflation_radius: 0.5 
 
       always_send_full_costmap: True
 
@@ -408,7 +409,7 @@ planner_server:
       tolerance: 0.5
       # use_astar: false → usa Dijkstra. True → A* (más rápido en mapas grandes).
       use_astar: false
-      allow_unknown: true  # permite planear a través de espacio no explorado
+      allow_unknown: true  # true permite planear a través de espacio no explorado
 
 planner_server_rclcpp_node:
   ros__parameters:

@@ -43,26 +43,26 @@ def generate_launch_description():
     )
 
     # ── Nodo retorno a base ───────────────────────────────────────────────
-    return_to_base = Node(
-        package='robot',
-        executable='return_to_base',          # (registrado en CMakeLists.txt)
-        name='return_to_base',
-        output='screen',
-        parameters=[{
-            'exploration_time': 150.0,        # segundos
-            'map_dir': '/home/pablo',
-            'map_base_name': 'labo',
-            'overwrite_map': False,           # True = labo_temp
-        }]
-    )
+    # return_to_base = Node(
+    #     package='robot',
+    #     executable='return_to_base',          # (registrado en CMakeLists.txt)
+    #     name='return_to_base',
+    #     output='screen',
+    #     parameters=[{
+    #         'exploration_time': 150.0,        # segundos
+    #         'map_dir': '/home/pablo',
+    #         'map_base_name': 'labo',
+    #         'overwrite_map': False,           # True = labo_temp
+    #     }]
+    # )
 
-    delayed_return_to_base = TimerAction(
-        period=10.0,
-        actions=[return_to_base]
-    )
+    # delayed_return_to_base = TimerAction(
+    #     period=10.0,
+    #     actions=[return_to_base]
+    # )
 
     return LaunchDescription([
         slam,
         delayed_nav2,
-        delayed_return_to_base,
+        # delayed_return_to_base,
     ])
