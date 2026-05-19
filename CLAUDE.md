@@ -5,7 +5,7 @@ Guía para Claude Code en este repositorio. Todo el stack fue probado y funciona
 ## Build
 
 ```bash
-# Desde el workspace root (~/robot_lidar_dev), no desde src/
+# Desde el workspace root (~/robotLidar), no desde src/
 colcon build --symlink-install
 source install/setup.bash
 
