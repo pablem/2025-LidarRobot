@@ -43,26 +43,30 @@ def generate_launch_description():
     )
 
     # ── Nodo retorno a base ───────────────────────────────────────────────
-    # return_to_base = Node(
-    #     package='robot',
-    #     executable='return_to_base',          # (registrado en CMakeLists.txt)
-    #     name='return_to_base',
-    #     output='screen',
-    #     parameters=[{
-    #         'exploration_time': 150.0,        # segundos
-    #         'map_dir': '/home/pablo',
-    #         'map_base_name': 'labo',
-    #         'overwrite_map': False,           # True = labo_temp
-    #     }]
-    # )
+    return_to_base = Node(
+        package='robot',
+        executable='return_to_base',
+        name='return_to_base',
+        output='screen',
+        parameters=[{
+            'exploration_time': 150.0,       # timer máximo de exploración (segundos)
+            'min_exploration_time': 30.0,    # no disparar idle antes de este tiempo
+            'idle_timeout': 8.0,             # segundos sin goals Nav2 → exploración terminada
+            'map_dir': '/home/pablo',
+            'map_base_name': 'explore',
+            'overwrite_map': True,
+            # 'battery_topic': '/battery_state',
+            # 'battery_threshold': 20.0,
+        }]
+    )
 
-    # delayed_return_to_base = TimerAction(
-    #     period=10.0,
-    #     actions=[return_to_base]
-    # )
+    delayed_return_to_base = TimerAction(
+        period=10.0,       # esperar a que Nav2 esté listo antes de arrancar
+        actions=[return_to_base]
+    )
 
     return LaunchDescription([
         slam,
         delayed_nav2,
-        # delayed_return_to_base,
+        delayed_return_to_base,
     ])

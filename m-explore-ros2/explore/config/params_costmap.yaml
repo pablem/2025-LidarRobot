@@ -1,13 +1,18 @@
+# Configuración ALTERNATIVA — actualmente no usada.
+# Para activarla: cambiar en explore.launch.py la línea de config a "params_costmap.yaml".
+# Diferencia con params.yaml: suscribe al costmap inflado de Nav2
+# (/global_costmap/costmap) que incluye capas de obstáculos e inflación.
+# Más conservador pero requiere Nav2 completamente inicializado.
 explore_node:
   ros__parameters:
     robot_base_frame: base_link
-    costmap_topic: /global_costmap/costmap
+    costmap_topic: /global_costmap/costmap          # costmap inflado de Nav2 (no el mapa crudo)
     costmap_updates_topic: /global_costmap/costmap_updates
     visualize: true
-    planner_frequency: 0.15
+    planner_frequency: 0.15            # Hz — más lento que params.yaml (0.33) porque el costmap inflado cambia más despacio
     progress_timeout: 30.0
     potential_scale: 3.0
     orientation_scale: 0.0
     gain_scale: 1.0
     transform_tolerance: 0.3
-    min_frontier_size: 0.5
+    min_frontier_size: 0.5             # m — más permisivo que params.yaml (0.75) porque el costmap ya filtra zonas inaccesibles

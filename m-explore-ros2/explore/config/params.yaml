@@ -1,14 +1,17 @@
+# Configuración activa (usada por explore.launch.py).
+# Diferencia con params_costmap.yaml: suscribe al mapa crudo de SLAM ("map")
+# en lugar del costmap inflado de Nav2 (/global_costmap/costmap).
 /**:
   ros__parameters:
     robot_base_frame: base_link
-    return_to_init: true
-    costmap_topic: map
+    return_to_init: false               # return_to_base.py maneja el retorno a odom(0,0,0); explore_lite solo usa map frame
+    costmap_topic: map                  # mapa crudo de slam_toolbox; alternativa: /global_costmap/costmap
     costmap_updates_topic: map_updates
-    visualize: true
-    planner_frequency: 0.33
-    progress_timeout: 30.0
-    potential_scale: 3.0
-    orientation_scale: 0.0
-    gain_scale: 1.0
-    transform_tolerance: 0.3
-    min_frontier_size: 0.75
+    visualize: true                     # publica fronteras en /explore/frontiers para RViz
+    planner_frequency: 0.33              # Hz — re-evalúa más seguido; antes 0.2 → muy lento para desbloquear blacklists
+    progress_timeout: 30.0              # s — sin avance → blacklist del goal
+    potential_scale: 1.0                # reducido de 3.0; menos penalización por distancia → acepta fronteras lejanas
+    orientation_scale: 0.0              # no implementado, dejar en 0
+    gain_scale: 3.0                     # aumentado de 1.0; premia fronteras grandes → evita huecos pequeños
+    transform_tolerance: 0.3            # s — timeout para lookups TF
+    min_frontier_size: 1.0              # aumentado de 0.5m; filtra aperturas menores a 1m donde el robot no cabe

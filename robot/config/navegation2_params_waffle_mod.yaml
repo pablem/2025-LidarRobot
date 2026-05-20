@@ -154,8 +154,8 @@ controller_server:
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       # Distancia mínima que debe recorrer el robot en movement_time_allowance segundos.
-      required_movement_radius: 0.5
-      movement_time_allowance: 10.0
+      required_movement_radius: 0.3
+      movement_time_allowance: 12.0
 
     general_goal_checker:
       stateful: True
@@ -172,23 +172,22 @@ controller_server:
       debug_trajectory_details: True
 
       # ── VELOCIDADES MÁXIMAS Y MÍNIMAS ────────────────────────────────────
-      # turtlebot3 waffle: 0.22 m/s
-      min_vel_x: 0.0
+      min_vel_x: -0.05     # pequeño negativo: retroceso disponible pero poco muestreado vs forward
       min_vel_y: 0.0
-      max_vel_x: 0.22       
-      max_vel_y: 0.0        
-      max_vel_theta: 1.0    
+      max_vel_x: 0.18
+      max_vel_y: 0.0
+      max_vel_theta: 0.6
       min_speed_xy: 0.0
-      max_speed_xy: 0.22    # igual que max_vel_x
+      max_speed_xy: 0.18
       min_speed_theta: 0.0
 
       # ── ACELERACIONES ─────────────────────────────────────────────────────
-      acc_lim_x: 2.5        # aceleración lineal máxima (m/s²)
-      acc_lim_y: 0.0        
-      acc_lim_theta: 3.2    # aceleración angular máxima (rad/s²)
-      decel_lim_x: -2.5     # desaceleración lineal (debe ser negativa)
+      acc_lim_x: 1.8        # m/s²; tiempo a max_vel_x: 0.18/1.8 = 0.1s (igual que antes)
+      acc_lim_y: 0.0
+      acc_lim_theta: 2.2    # rad/s²; tiempo a max_vel_theta: 0.6/2.2 = 0.27s (igual que antes)
+      decel_lim_x: -1.8
       decel_lim_y: 0.0
-      decel_lim_theta: -3.2 # desaceleración angular (debe ser negativa)
+      decel_lim_theta: -2.2
 
       # ── MUESTREO DE TRAYECTORIAS DWA ─────────────────────────────────────
       # vx_samples: cuántas velocidades lineales simular
@@ -207,7 +206,7 @@ controller_server:
       # xy_goal_tolerance acá es para DWB internamente (puede diferir del goal_checker).
       xy_goal_tolerance: 0.05
 
-      trans_stopped_velocity: 0.25
+      trans_stopped_velocity: 0.05  # debe ser < max_vel_x (0.20); antes era 0.25 → robot siempre "detenido"
       short_circuit_trajectory_evaluation: True
       stateful: True
 
@@ -215,12 +214,12 @@ controller_server:
       # Estos puntajes determinan cómo DWB elige la mejor trayectoria.
       # Los valores son estándar
       critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
-      BaseObstacle.scale: 0.2 # 0.02 es muy bajo, se choca
-      PathAlign.scale: 32.0
+      BaseObstacle.scale: 0.5 #1.0 # 0.2 era demasiado bajo vs PathAlign 32.0 → seguía ruta aunque hubiera obstáculos
+      PathAlign.scale: 24.0  # reducido de 32.0; da más margen a BaseObstacle para desviar de ruta
       PathAlign.forward_point_distance: 0.1
       GoalAlign.scale: 24.0
       GoalAlign.forward_point_distance: 0.1
-      PathDist.scale: 32.0
+      PathDist.scale: 24.0   # reducido de 32.0; ídem
       GoalDist.scale: 24.0
       RotateToGoal.scale: 32.0
       RotateToGoal.slowing_factor: 5.0
@@ -251,7 +250,7 @@ local_costmap:
       # robot_radius: 0.225
       # Usar footprint en lugar de robot_radius; ancho 0.45 y largo 0.35
       # footprint: "[ [-0.175, -0.23], [-0.175, 0.23], [0.175, 0.23], [0.175, -0.23] ]"
-      footprint: "[ [-0.05, -0.235], [-0.05, 0.23], [0.27, 0.23], [0.27, -0.235] ]"
+      footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # +1cm por lado
       # ── CAPAS DEL COSTMAP ─────────────────────────────────────────────────
       # obstacle_layer: obstáculos 2D detectados por el lidar 
       # voxel_layer: obstáculos 3D (no usar, para cámaras, sensores 3D)
@@ -262,19 +261,23 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.5    # margen (en metros) que agrega alrededor de obstáculos.
-        cost_scaling_factor: 3.0 # qué tan rápido decrece el coste con la distancia
+        inflation_radius: 0.28
+        cost_scaling_factor: 2.5 # gradiente suave: costos altos en toda la zona → planner evita acercarse
 
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
         observation_sources: scan
         scan:
-          topic: /scan    
+          topic: /scan
           max_obstacle_height: 2.0
           clearing: True
           marking: True
           data_type: "LaserScan"
+          raytrace_max_range: 2.0   # no borra celdas más allá de 2m
+          raytrace_min_range: 0.15  # XV-11 no confiable bajo 15cm; lecturas menores no borran
+          obstacle_max_range: 3.0   # no marca obstáculos más allá de 3m
+          obstacle_min_range: 0.15  # lecturas bajo 15cm son ruido o el propio robot
 
       # voxel_layer:
       #   plugin: "nav2_costmap_2d::VoxelLayer"
@@ -311,7 +314,7 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
-      update_frequency: 1.0
+      update_frequency: 2.0  # subido de 1.0 Hz; incorpora obstáculos nuevos más rápido al plan global
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: base_link
@@ -321,7 +324,7 @@ global_costmap:
       # Mismo valor que en local_costmap.
       # robot_radius: 0.225
       # footprint: "[ [-0.175, -0.23], [-0.175, 0.23], [0.175, 0.23], [0.175, -0.23] ]"
-      footprint: "[ [-0.05, -0.235], [-0.05, 0.23], [0.27, 0.23], [0.27, -0.235] ]"
+      footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # +1cm por lado
 
       resolution: 0.05
       track_unknown_space: true
@@ -373,8 +376,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        # inflation_radius global: puede ser menor que el local.
-        inflation_radius: 0.5 
+        inflation_radius: 0.28
 
       always_send_full_costmap: True
 
@@ -406,7 +408,7 @@ planner_server:
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
       # tolerance: radio de búsqueda alrededor del goal si no es alcanzable.
-      tolerance: 0.5
+      tolerance: 0.75  # aumentado de 0.5; frontiers en zona inflada → NavFn busca más lejos una celda libre
       # use_astar: false → usa Dijkstra. True → A* (más rápido en mapas grandes).
       use_astar: false
       allow_unknown: true  # true permite planear a través de espacio no explorado
@@ -436,9 +438,9 @@ recoveries_server:
 
     # ── VELOCIDADES DE RECUPERACIÓN ───────────────────────────────────────
     # Estas velocidades se usan cuando el robot está atascado y ejecuta un spin.
-    max_rotational_vel: 1.5
-    min_rotational_vel: 0.4
-    rotational_acc_lim: 3.2
+    max_rotational_vel: 0.7   # alineado con max_vel_theta del controlador (antes 1.5)
+    min_rotational_vel: 0.3   # mínimo para que el spin no sea demasiado lento (antes 0.4)
+    rotational_acc_lim: 2.0   # alineado con acc_lim_theta del controlador (antes 3.2)
 
 robot_state_publisher:
   ros__parameters:
