@@ -16,14 +16,14 @@ import os
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
-from rclpy.duration import Duration
+from rclpy.qos import QoSProfile, DurabilityPolicy
 from action_msgs.msg import GoalStatus, GoalStatusArray
 from nav2_msgs.action import NavigateToPose
 from slam_toolbox.srv import SerializePoseGraph
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool
 from sensor_msgs.msg import BatteryState
-import tf2_ros
+from explore_lite_msgs.msg import ExploreStatus
 
 
 class ReturnToBase(Node):
@@ -33,7 +33,7 @@ class ReturnToBase(Node):
         # ── Parámetros configurables ──────────────────────────────────────
         self.declare_parameter('exploration_time', 150.0)
         self.declare_parameter('min_exploration_time', 60.0)  # no activar idle antes de esto
-        self.declare_parameter('idle_timeout', 8.0)           # segundos sin goals → exploración terminada
+        self.declare_parameter('idle_timeout', 10.0)           # segundos sin goals → exploración terminada
         self.declare_parameter('map_dir', '/home/pablo')
         self.declare_parameter('map_base_name', 'explore')
         self.declare_parameter('overwrite_map', True)
@@ -54,15 +54,11 @@ class ReturnToBase(Node):
         self._nav_was_active     = False  # Nav2 tuvo al menos un goal activo
         self._start_time         = self.get_clock().now()
         self._last_active_time   = self.get_clock().now()
-        self._home_x             = None
-        self._home_y             = None
         self._update_timer       = None
 
         self._nav_client  = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self._map_client  = self.create_client(SerializePoseGraph, '/slam_toolbox/serialize_map')
         self._explore_pub = self.create_publisher(Bool, '/explore/resume', 10)
-        self._tf_buffer   = tf2_ros.Buffer()
-        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self)
 
         self.get_logger().info(
             f'[return_to_base] Timer: {self.exploration_time:.0f}s | '
@@ -81,6 +77,11 @@ class ReturnToBase(Node):
             10,
         )
         self._idle_check_timer = self.create_timer(2.0, self._check_idle)
+
+        # Fin de exploración (transient_local: QoS requerida por el topic)
+        _status_qos = QoSProfile(depth=10)
+        _status_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        self.create_subscription(ExploreStatus, '/explore/status', self._on_explore_status, _status_qos)
 
         # Batería (opcional)
         if self.battery_topic:
@@ -114,7 +115,13 @@ class ReturnToBase(Node):
             self._explore_timer.cancel()
             self._trigger_return(f'Nav2 inactivo {idle_secs:.1f}s — exploración terminada')
 
-    # ── 3. Batería baja ───────────────────────────────────────────────────
+    # ── 3. Fin de exploración ─────────────────────────────────────────────
+    def _on_explore_status(self, msg: ExploreStatus):
+        if msg.status == ExploreStatus.EXPLORATION_COMPLETE and not self._returning:
+            self._explore_timer.cancel()
+            self._trigger_return('Exploración completa')
+
+    # ── 4. Batería baja ───────────────────────────────────────────────────
     def _on_battery(self, msg: BatteryState):
         pct = msg.percentage * 100.0
         if math.isnan(pct) or self._returning:
@@ -123,7 +130,7 @@ class ReturnToBase(Node):
             self._explore_timer.cancel()
             self._trigger_return(f'Batería baja ({pct:.1f}% < {self.battery_threshold:.0f}%)')
 
-    # ── Punto de entrada común para los tres triggers ─────────────────────
+    # ── Punto de entrada común para todos los triggers ────────────────────
     def _trigger_return(self, reason: str):
         if self._returning:
             return
@@ -131,7 +138,7 @@ class ReturnToBase(Node):
         self.get_logger().info(f'[return_to_base] {reason}. Retornando a base...')
         self._pause_explore_and_return()
 
-    # ── 4. Pausar explore_lite antes de tomar Nav2 ────────────────────────
+    # ── 7. Pausar explore_lite antes de tomar Nav2 ───────────────────────
     def _pause_explore_and_return(self):
         msg = Bool()
         msg.data = False
@@ -139,7 +146,7 @@ class ReturnToBase(Node):
         self.get_logger().info('[return_to_base] explore_lite pausado. Esperando 2s...')
         self._pause_timer = self.create_timer(2.0, self._send_goal_to_base)
 
-    # ── 5. Mandar goal odom(0,0,0) a Nav2 ────────────────────────────────
+    # ── 6. Mandar goal map(0,0,0) a Nav2 ─────────────────────────────────
     def _send_goal_to_base(self):
         self._pause_timer.cancel()
 
@@ -148,22 +155,8 @@ class ReturnToBase(Node):
             self.get_logger().error('[return_to_base] Nav2 no disponible, abortando.')
             return
 
-        # Nav2 ignora frame_id y opera en map. lookup_transform da odom(0,0,0) en map.
-        try:
-            t = self._tf_buffer.lookup_transform(
-                'map', 'odom', rclpy.time.Time(), timeout=Duration(seconds=3.0)
-            )
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
-                tf2_ros.ExtrapolationException) as e:
-            self.get_logger().error(f'[return_to_base] TF odom→map fallido: {e}')
-            return
-
-        self._home_x = t.transform.translation.x
-        self._home_y = t.transform.translation.y
-        self._send_home_goal(self._home_x, self._home_y, initial=True)
-
-        # Durante el retorno SLAM sigue ajustando map→odom; re-evaluar cada 6s
-        self._update_timer = self.create_timer(6.0, self._update_home_goal)
+        self._send_home_goal(0.0, 0.0, initial=True)
+        self._update_timer = self.create_timer(5.0, self._update_home_goal)
 
     def _send_home_goal(self, x, y, initial=False):
         goal = NavigateToPose.Goal()
@@ -173,30 +166,13 @@ class ReturnToBase(Node):
         goal.pose.pose.position.x = x
         goal.pose.pose.position.y = y
         goal.pose.pose.orientation.w = 1.0
-        tag = 'Goal inicial' if initial else 'Goal actualizado'
-        self.get_logger().info(f'[return_to_base] {tag}: odom(0,0,0) → map({x:.3f}, {y:.3f})')
+        tag = 'Goal inicial' if initial else 'Re-enviando goal'
+        self.get_logger().info(f'[return_to_base] {tag}: map({x:.3f}, {y:.3f})')
         future = self._nav_client.send_goal_async(goal)
         future.add_done_callback(self._on_goal_accepted)
 
     def _update_home_goal(self):
-        try:
-            t = self._tf_buffer.lookup_transform('map', 'odom', rclpy.time.Time())
-        except Exception:
-            return
-
-        new_x = t.transform.translation.x
-        new_y = t.transform.translation.y
-        drift = math.sqrt((new_x - self._home_x) ** 2 + (new_y - self._home_y) ** 2)
-
-        if drift < 0.05:
-            return
-
-        self._home_x = new_x
-        self._home_y = new_y
-        self.get_logger().info(
-            f'[return_to_base] odom se desplazó {drift:.3f}m, re-enviando goal'
-        )
-        self._send_home_goal(new_x, new_y)
+        self._send_home_goal(0.0, 0.0)
 
     def _on_goal_accepted(self, future):
         goal_handle = future.result()
@@ -222,7 +198,7 @@ class ReturnToBase(Node):
                 f'[return_to_base] Navegación terminó con status {result.status}.'
             )
 
-    # ── 6. Guardar mapa ───────────────────────────────────────────────────
+    # ── 8. Guardar mapa ───────────────────────────────────────────────────
     def _save_map(self):
         self.get_logger().info('[return_to_base] Esperando servicio /slam_toolbox/serialize_map...')
         if not self._map_client.wait_for_service(timeout_sec=10.0):

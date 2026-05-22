@@ -49,7 +49,7 @@ def generate_launch_description():
         name='return_to_base',
         output='screen',
         parameters=[{
-            'exploration_time': 150.0,       # timer máximo de exploración (segundos)
+            'exploration_time': 240.0,       # timer máximo de exploración (segundos)
             'min_exploration_time': 30.0,    # no disparar idle antes de este tiempo
             'idle_timeout': 8.0,             # segundos sin goals Nav2 → exploración terminada
             'map_dir': '/home/pablo',

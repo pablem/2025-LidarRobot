@@ -43,7 +43,7 @@ MPU9250Driver::MPU9250Driver() : Node("mpu9250publisher")
   imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("imu/data_raw", 10);
   mag_pub_ = this->create_publisher<sensor_msgs::msg::MagneticField>("imu/mag", 10);
   std::chrono::duration<int64_t, std::milli> frequency =
-      1000ms / this->get_parameter("gyro_range").as_int();
+      1000ms / this->get_parameter("frequency").as_int();
   timer_ = this->create_wall_timer(frequency, std::bind(&MPU9250Driver::handleInput, this));
 }
 
@@ -129,7 +129,7 @@ void MPU9250Driver::declareParameters()
   this->declare_parameter<double>("mag_x_offset", 0.0);
   this->declare_parameter<double>("mag_y_offset", 0.0);
   this->declare_parameter<double>("mag_z_offset", 0.0);
-  this->declare_parameter<int>("frequency", 0.0);
+  this->declare_parameter<int>("frequency", 100);
 }
 
 // void MPU9250Driver::calculateOrientation(sensor_msgs::msg::Imu& imu_message)

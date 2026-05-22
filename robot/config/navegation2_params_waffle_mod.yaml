@@ -163,8 +163,8 @@ controller_server:
 
       # ── TOLERANCIA DE LLEGADA AL OBJETIVO ────────────────────────────────
       # Tolerancia al llegar al goal (radianes). 0.25 rad ≈ 14°.
-      xy_goal_tolerance: 0.20 # 0.25
-      yaw_goal_tolerance: 0.07  # 0.07 rad ≈ 4°
+      xy_goal_tolerance: 0.1 # 0.25
+      yaw_goal_tolerance: 0.05  # 0.07 rad ≈ 4°
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
@@ -175,18 +175,18 @@ controller_server:
       min_vel_y: 0.0
       max_vel_x: 0.18
       max_vel_y: 0.0
-      max_vel_theta: 0.6
+      max_vel_theta: 0.4    # desde 0.6 → error en giro pasa de ~10° a ~7°
       min_speed_xy: 0.0
       max_speed_xy: 0.18
       min_speed_theta: 0.0
 
       # ── ACELERACIONES ─────────────────────────────────────────────────────
-      acc_lim_x: 1.8        # m/s²; tiempo a max_vel_x: 0.18/1.8 = 0.1s (igual que antes)
+      acc_lim_x: 1.8        # m/s²;
       acc_lim_y: 0.0
-      acc_lim_theta: 2.2    # rad/s²; tiempo a max_vel_theta: 0.6/2.2 = 0.27s (igual que antes)
+      acc_lim_theta: 1.5    # rad/s²; 
       decel_lim_x: -1.8
       decel_lim_y: 0.0
-      decel_lim_theta: -2.2
+      decel_lim_theta: -1.5
 
       # ── MUESTREO DE TRAYECTORIAS DWA ─────────────────────────────────────
       # vx_samples: cuántas velocidades lineales simular
@@ -440,9 +440,9 @@ recoveries_server:
 
     # ── VELOCIDADES DE RECUPERACIÓN ───────────────────────────────────────
     # Estas velocidades se usan cuando el robot está atascado y ejecuta un spin.
-    max_rotational_vel: 0.7   # alineado con max_vel_theta del controlador (antes 1.5)
-    min_rotational_vel: 0.3   # mínimo para que el spin no sea demasiado lento (antes 0.4)
-    rotational_acc_lim: 2.0   # alineado con acc_lim_theta del controlador (antes 3.2)
+    max_rotational_vel: 0.4   # igual a max_vel_theta del controlador
+    min_rotational_vel: 0.2   # ~50% del máximo; antes 0.3 dejaba rango muy estrecho (0.3–0.7)
+    rotational_acc_lim: 1.5   # igual a acc_lim_theta del controlador
 
 robot_state_publisher:
   ros__parameters:

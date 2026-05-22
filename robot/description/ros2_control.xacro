@@ -9,7 +9,7 @@
             <param name="loop_rate">100</param>
             <param name="device">/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_10:20:BA:4D:92:80-if00</param>
             <param name="baud_rate">57600</param>
-            <param name="timeout_ms">1000</param>
+            <param name="timeout_ms">100</param>
             <!-- <param name="enc_counts_per_rev_left">33572</param> -->
             <!-- <param name="enc_counts_per_rev_right">32730</param> -->
             <param name="enc_counts_per_rev_left">33667</param>
