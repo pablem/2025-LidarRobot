@@ -1,6 +1,6 @@
 # Configuración de exploración autónoma y retorno a base
 
-Cambios realizados respecto a la configuración original de Nav2 + explore_lite para el robot con LiDAR Neato XV-11 en Raspberry Pi.
+Cambios realizados respecto a la configuración original de Nav2 + explore_lite.
 
 ## Resumen de problemas resueltos
 
@@ -14,6 +14,7 @@ Cambios realizados respecto a la configuración original de Nav2 + explore_lite 
 | Robot exploraba zonas donde no cabe | `min_frontier_size` demasiado bajo | Subir a 1.0m |
 | Robot prefería fronteras cercanas chicas | `potential_scale` dominaba sobre `gain_scale` | Invertir proporción |
 | Robot se quedaba quieto al terminar exploración | Sin detección de inactividad en `return_to_base` | Suscripción a `/navigate_to_pose/_action/status` |
+| Robot chocaba en esquinas al girar | Correcciones angulares bruscas de SLAM + `transform_tolerance` insuficiente con delay negativo de TF | `angle_variance_penalty` bajado, `transform_tolerance: 0.5` |
 
 ---
 
@@ -77,18 +78,19 @@ obstacle_max_range: 2.0
 obstacle_min_range: 0.15
 ```
 
-### Inflation (local vs global diferenciados)
+### Inflation (local y global)
 
 ```yaml
-# Local (DWB ejecuta): más conservador
 inflation_layer:
-  inflation_radius: 0.28
-  cost_scaling_factor: 2.5   # gradiente suave = costos altos en toda la zona
+  inflation_radius: 0.30
+  cost_scaling_factor: 1.2   # factor bajo = gradiente extendido; planner prefiere el centro del pasillo
+                              # valores altos (>2) dan gradiente abrupto: el robot puede raspar esquinas
+```
 
-# Global (NavFn planifica): más permisivo para que pueda trazar rutas a frontiers
-inflation_layer:
-  inflation_radius: 0.28
-  cost_scaling_factor: 3.0
+### transform_tolerance (local y global costmap)
+
+```yaml
+transform_tolerance: 0.5   # default 0.3s era insuficiente; TF map→odom tiene delay sistemático de ~0.25s
 ```
 
 ### Planner server
@@ -102,6 +104,21 @@ tolerance: 0.75   # antes 0.5m; NavFn busca una celda libre hasta 0.75m del fron
 
 ```yaml
 update_frequency: 2.0   # antes 1.0 Hz; incorpora nuevos obstáculos más rápido al plan global
+```
+
+---
+
+## `mapper_params_online_async.yaml`
+
+Parámetros ajustados para reducir correcciones bruscas de `map→odom` durante rotaciones. La odometría filtrada por EKF es más confiable que el scan matcher en giros.
+
+```yaml
+minimum_travel_distance: 0.15   # mínima traslación para procesar un scan nuevo
+minimum_travel_heading: 0.3     # mínima rotación (~17°) para procesar un scan; reduce a ~5 correcciones por giro de 90°
+
+# Scan Matcher — valores bajos = el optimizador penaliza más desviarse del odom
+distance_variance_penalty: 0.3  # antes 0.5
+angle_variance_penalty: 0.4     # antes 1.0; el más importante para evitar saltos en rotación
 ```
 
 ---

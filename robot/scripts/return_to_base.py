@@ -16,12 +16,14 @@ import os
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
+from rclpy.duration import Duration
 from action_msgs.msg import GoalStatus, GoalStatusArray
 from nav2_msgs.action import NavigateToPose
 from slam_toolbox.srv import SerializePoseGraph
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool
 from sensor_msgs.msg import BatteryState
+import tf2_ros
 
 
 class ReturnToBase(Node):
@@ -52,10 +54,15 @@ class ReturnToBase(Node):
         self._nav_was_active     = False  # Nav2 tuvo al menos un goal activo
         self._start_time         = self.get_clock().now()
         self._last_active_time   = self.get_clock().now()
+        self._home_x             = None
+        self._home_y             = None
+        self._update_timer       = None
 
         self._nav_client  = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self._map_client  = self.create_client(SerializePoseGraph, '/slam_toolbox/serialize_map')
         self._explore_pub = self.create_publisher(Bool, '/explore/resume', 10)
+        self._tf_buffer   = tf2_ros.Buffer()
+        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self)
 
         self.get_logger().info(
             f'[return_to_base] Timer: {self.exploration_time:.0f}s | '
@@ -141,18 +148,55 @@ class ReturnToBase(Node):
             self.get_logger().error('[return_to_base] Nav2 no disponible, abortando.')
             return
 
+        # Nav2 ignora frame_id y opera en map. lookup_transform da odom(0,0,0) en map.
+        try:
+            t = self._tf_buffer.lookup_transform(
+                'map', 'odom', rclpy.time.Time(), timeout=Duration(seconds=3.0)
+            )
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException) as e:
+            self.get_logger().error(f'[return_to_base] TF odom→map fallido: {e}')
+            return
+
+        self._home_x = t.transform.translation.x
+        self._home_y = t.transform.translation.y
+        self._send_home_goal(self._home_x, self._home_y, initial=True)
+
+        # Durante el retorno SLAM sigue ajustando map→odom; re-evaluar cada 6s
+        self._update_timer = self.create_timer(6.0, self._update_home_goal)
+
+    def _send_home_goal(self, x, y, initial=False):
         goal = NavigateToPose.Goal()
         goal.pose = PoseStamped()
-        goal.pose.header.frame_id = 'odom'
+        goal.pose.header.frame_id = 'map'
         goal.pose.header.stamp = self.get_clock().now().to_msg()
-        goal.pose.pose.position.x = 0.0
-        goal.pose.pose.position.y = 0.0
-        goal.pose.pose.position.z = 0.0
+        goal.pose.pose.position.x = x
+        goal.pose.pose.position.y = y
         goal.pose.pose.orientation.w = 1.0
+        tag = 'Goal inicial' if initial else 'Goal actualizado'
+        self.get_logger().info(f'[return_to_base] {tag}: odom(0,0,0) → map({x:.3f}, {y:.3f})')
+        future = self._nav_client.send_goal_async(goal)
+        future.add_done_callback(self._on_goal_accepted)
 
-        self.get_logger().info('[return_to_base] Goal enviado: odom(0, 0, 0)')
-        send_goal_future = self._nav_client.send_goal_async(goal)
-        send_goal_future.add_done_callback(self._on_goal_accepted)
+    def _update_home_goal(self):
+        try:
+            t = self._tf_buffer.lookup_transform('map', 'odom', rclpy.time.Time())
+        except Exception:
+            return
+
+        new_x = t.transform.translation.x
+        new_y = t.transform.translation.y
+        drift = math.sqrt((new_x - self._home_x) ** 2 + (new_y - self._home_y) ** 2)
+
+        if drift < 0.05:
+            return
+
+        self._home_x = new_x
+        self._home_y = new_y
+        self.get_logger().info(
+            f'[return_to_base] odom se desplazó {drift:.3f}m, re-enviando goal'
+        )
+        self._send_home_goal(new_x, new_y)
 
     def _on_goal_accepted(self, future):
         goal_handle = future.result()
@@ -166,8 +210,13 @@ class ReturnToBase(Node):
     def _on_goal_reached(self, future):
         result = future.result()
         if result.status == GoalStatus.STATUS_SUCCEEDED:
+            if self._update_timer:
+                self._update_timer.cancel()
+                self._update_timer = None
             self.get_logger().info('[return_to_base] ¡Base alcanzada! Guardando mapa...')
             self._save_map()
+        elif result.status == GoalStatus.STATUS_CANCELED:
+            pass  # preemptado por _update_home_goal — el nuevo goal manejará el resultado
         else:
             self.get_logger().warn(
                 f'[return_to_base] Navegación terminó con status {result.status}.'

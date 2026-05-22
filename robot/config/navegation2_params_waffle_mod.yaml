@@ -162,17 +162,16 @@ controller_server:
       plugin: "nav2_controller::SimpleGoalChecker"
 
       # ── TOLERANCIA DE LLEGADA AL OBJETIVO ────────────────────────────────
-      # Bajar para más precisión
-      xy_goal_tolerance: 0.2 # 0.25
-      # Tolerancia angular al llegar al goal (radianes). 0.25 rad ≈ 14°.
-      yaw_goal_tolerance: 0.2 # 0.25
+      # Tolerancia al llegar al goal (radianes). 0.25 rad ≈ 14°.
+      xy_goal_tolerance: 0.20 # 0.25
+      yaw_goal_tolerance: 0.07  # 0.07 rad ≈ 4°
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: True
 
       # ── VELOCIDADES MÁXIMAS Y MÍNIMAS ────────────────────────────────────
-      min_vel_x: -0.05     # pequeño negativo: retroceso disponible pero poco muestreado vs forward
+      min_vel_x: 0.0     # retroceso desactivado
       min_vel_y: 0.0
       max_vel_x: 0.18
       max_vel_y: 0.0
@@ -232,19 +231,21 @@ controller_server_rclcpp_node:
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 5.0
-      publish_frequency: 2.0
+      update_frequency: 8.0  # subido de 5.0; compensa costmap 100x100 celdas (antes 60x60 a 0.05m)
+      # Bajarlo (0.7~0.6) si la RPi4 se satura con update_frequency: 8.0 (aparecen muchos Control loop missed desired rate) 
+      publish_frequency: 3.0
       global_frame: odom
       robot_base_frame: base_link
       use_sim_time: False
       rolling_window: true
+      transform_tolerance: 0.5  # delay observado en map→odom llega a 0.247s; default 0.3s era insuficiente
 
       # ── TAMAÑO DEL COSTMAP LOCAL ──────────────────────────────────────────
       # 3x3 metros es el área alrededor del robot que Nav2 usa para evitar obstáculos.
       # en 3x3 para pasillos estrechos.
       width: 3
       height: 3
-      resolution: 0.05  # 5 cm por celda
+      resolution: 0.03  # 3cm/celda; antes 0.05 — local costmap (100x100 celdas vs 60x60)
 
       # ── RADIO DEL ROBOT ───────────────────────────────────────────────────
       # robot_radius: 0.225
@@ -261,8 +262,8 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.28
-        cost_scaling_factor: 2.5 # gradiente suave: costos altos en toda la zona → planner evita acercarse
+        inflation_radius: 0.30
+        cost_scaling_factor: 1.2  # factor bajo = gradiente extendido → planner prefiere el centro del pasillo (antes 2.5 era abrupto)
 
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -275,9 +276,9 @@ local_costmap:
           marking: True
           data_type: "LaserScan"
           raytrace_max_range: 2.0   # no borra celdas más allá de 2m
-          raytrace_min_range: 0.15  # XV-11 no confiable bajo 15cm; lecturas menores no borran
+          raytrace_min_range: 0.17  # XV-11 no confiable bajo 15cm; lecturas menores no borran
           obstacle_max_range: 3.0   # no marca obstáculos más allá de 3m
-          obstacle_min_range: 0.15  # lecturas bajo 15cm son ruido o el propio robot
+          obstacle_min_range: 0.17  # lecturas bajo 15cm son ruido o el propio robot
 
       # voxel_layer:
       #   plugin: "nav2_costmap_2d::VoxelLayer"
@@ -319,6 +320,7 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: False #True
+      transform_tolerance: 0.5  # ídem local_costmap
 
       # ── RADIO DEL ROBOT (global) ──────────────────────────────────────────
       # Mismo valor que en local_costmap.
@@ -326,7 +328,7 @@ global_costmap:
       # footprint: "[ [-0.175, -0.23], [-0.175, 0.23], [0.175, 0.23], [0.175, -0.23] ]"
       footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # +1cm por lado
 
-      resolution: 0.05
+      resolution: 0.03  # 3cm/celda; antes 0.05 — global costmap
       track_unknown_space: true
 
       # plugins: ["static_layer", "obstacle_layer", "voxel_layer", "inflation_layer"]
@@ -375,8 +377,8 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.28
+        cost_scaling_factor: 1.2  # gradiente extendido → NavFn prefiere rutas alejadas de esquinas (antes 2.0 era abrupto)
+        inflation_radius: 0.30
 
       always_send_full_costmap: True
 
