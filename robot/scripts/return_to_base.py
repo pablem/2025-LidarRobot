@@ -42,6 +42,7 @@ class ReturnToBase(Node):
         self.declare_parameter('battery_threshold', 20.0)
         # Maniobra de docking final (Nav2 BackUp action)
         self.declare_parameter('dock_x_offset', 0.40)    # meta en X en lugar de 0 (m)
+        self.declare_parameter('dock_yaw_offset', 0.0)   # corrección de yaw del goal (rad)
         self.declare_parameter('dock_reverse_dist', 0.45) # distancia de retroceso al dock (m)
         self.declare_parameter('dock_speed', 0.10)        # velocidad de la maniobra (m/s)
         self.declare_parameter('dock_startup_delay', 1.0) # s — espera tras goal Nav2 antes de BackUp
@@ -56,6 +57,7 @@ class ReturnToBase(Node):
         self.battery_topic         = self.get_parameter('battery_topic').value
         self.battery_threshold     = self.get_parameter('battery_threshold').value
         self.dock_x_offset         = self.get_parameter('dock_x_offset').value
+        self.dock_yaw_offset       = self.get_parameter('dock_yaw_offset').value
         self.dock_reverse_dist     = self.get_parameter('dock_reverse_dist').value
         self.dock_speed            = self.get_parameter('dock_speed').value
         self.dock_startup_delay    = self.get_parameter('dock_startup_delay').value
@@ -176,9 +178,14 @@ class ReturnToBase(Node):
         goal.pose.header.stamp = self.get_clock().now().to_msg()
         goal.pose.pose.position.x = x
         goal.pose.pose.position.y = y
-        goal.pose.pose.orientation.w = 1.0
+        # Yaw → quaternion (eje Z): qz = sin(yaw/2), qw = cos(yaw/2)
+        yaw = self.dock_yaw_offset
+        goal.pose.pose.orientation.z = math.sin(yaw / 2.0)
+        goal.pose.pose.orientation.w = math.cos(yaw / 2.0)
         tag = 'Goal inicial' if initial else 'Re-enviando goal'
-        self.get_logger().info(f'[return_to_base] {tag}: map({x:.3f}, {y:.3f})')
+        self.get_logger().info(
+            f'[return_to_base] {tag}: map({x:.3f}, {y:.3f}, yaw={yaw:.3f} rad)'
+        )
         future = self._nav_client.send_goal_async(goal)
         future.add_done_callback(self._on_goal_accepted)
 
