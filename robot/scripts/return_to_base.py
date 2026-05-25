@@ -18,7 +18,8 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from action_msgs.msg import GoalStatus, GoalStatusArray
-from nav2_msgs.action import NavigateToPose
+from builtin_interfaces.msg import Duration
+from nav2_msgs.action import NavigateToPose, BackUp
 from slam_toolbox.srv import SerializePoseGraph
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool
@@ -32,13 +33,18 @@ class ReturnToBase(Node):
 
         # ── Parámetros configurables ──────────────────────────────────────
         self.declare_parameter('exploration_time', 150.0)
-        self.declare_parameter('min_exploration_time', 60.0)  # no activar idle antes de esto
+        self.declare_parameter('min_exploration_time', 30.0)  # no activar idle antes de esto
         self.declare_parameter('idle_timeout', 10.0)           # segundos sin goals → exploración terminada
         self.declare_parameter('map_dir', '/home/pablo')
         self.declare_parameter('map_base_name', 'explore')
         self.declare_parameter('overwrite_map', True)
         self.declare_parameter('battery_topic', '')
         self.declare_parameter('battery_threshold', 20.0)
+        # Maniobra de docking final (Nav2 BackUp action)
+        self.declare_parameter('dock_x_offset', 0.40)    # meta en X en lugar de 0 (m)
+        self.declare_parameter('dock_reverse_dist', 0.45) # distancia de retroceso al dock (m)
+        self.declare_parameter('dock_speed', 0.10)        # velocidad de la maniobra (m/s)
+        self.declare_parameter('dock_startup_delay', 1.0) # s — espera tras goal Nav2 antes de BackUp
         # ─────────────────────────────────────────────────────────────────
 
         self.exploration_time      = self.get_parameter('exploration_time').value
@@ -49,6 +55,10 @@ class ReturnToBase(Node):
         self.overwrite_map         = self.get_parameter('overwrite_map').value
         self.battery_topic         = self.get_parameter('battery_topic').value
         self.battery_threshold     = self.get_parameter('battery_threshold').value
+        self.dock_x_offset         = self.get_parameter('dock_x_offset').value
+        self.dock_reverse_dist     = self.get_parameter('dock_reverse_dist').value
+        self.dock_speed            = self.get_parameter('dock_speed').value
+        self.dock_startup_delay    = self.get_parameter('dock_startup_delay').value
 
         self._returning          = False
         self._nav_was_active     = False  # Nav2 tuvo al menos un goal activo
@@ -56,9 +66,10 @@ class ReturnToBase(Node):
         self._last_active_time   = self.get_clock().now()
         self._update_timer       = None
 
-        self._nav_client  = ActionClient(self, NavigateToPose, 'navigate_to_pose')
-        self._map_client  = self.create_client(SerializePoseGraph, '/slam_toolbox/serialize_map')
-        self._explore_pub = self.create_publisher(Bool, '/explore/resume', 10)
+        self._nav_client    = ActionClient(self, NavigateToPose, 'navigate_to_pose')
+        self._backup_client = ActionClient(self, BackUp, 'backup')
+        self._map_client    = self.create_client(SerializePoseGraph, '/slam_toolbox/serialize_map')
+        self._explore_pub   = self.create_publisher(Bool, '/explore/resume', 10)
 
         self.get_logger().info(
             f'[return_to_base] Timer: {self.exploration_time:.0f}s | '
@@ -155,7 +166,7 @@ class ReturnToBase(Node):
             self.get_logger().error('[return_to_base] Nav2 no disponible, abortando.')
             return
 
-        self._send_home_goal(0.0, 0.0, initial=True)
+        self._send_home_goal(self.dock_x_offset, 0.0, initial=True)
         self._update_timer = self.create_timer(5.0, self._update_home_goal)
 
     def _send_home_goal(self, x, y, initial=False):
@@ -172,7 +183,7 @@ class ReturnToBase(Node):
         future.add_done_callback(self._on_goal_accepted)
 
     def _update_home_goal(self):
-        self._send_home_goal(0.0, 0.0)
+        self._send_home_goal(self.dock_x_offset, 0.0)
 
     def _on_goal_accepted(self, future):
         goal_handle = future.result()
@@ -189,8 +200,8 @@ class ReturnToBase(Node):
             if self._update_timer:
                 self._update_timer.cancel()
                 self._update_timer = None
-            self.get_logger().info('[return_to_base] ¡Base alcanzada! Guardando mapa...')
-            self._save_map()
+            self.get_logger().info('[return_to_base] ¡Punto de dock alcanzado! Iniciando maniobra de retroceso...')
+            self._do_dock_reverse()
         elif result.status == GoalStatus.STATUS_CANCELED:
             pass  # preemptado por _update_home_goal — el nuevo goal manejará el resultado
         else:
@@ -198,7 +209,49 @@ class ReturnToBase(Node):
                 f'[return_to_base] Navegación terminó con status {result.status}.'
             )
 
-    # ── 8. Guardar mapa ───────────────────────────────────────────────────
+    # ── 8. Maniobra de retroceso al dock (Nav2 BackUp action) ────────────
+    def _do_dock_reverse(self):
+        if self.dock_reverse_dist <= 0.0:
+            self._save_map()
+            return
+
+        # self.get_logger().info(
+        #     f'[return_to_base] Esperando {self.dock_startup_delay:.1f} s antes de '
+        #     f'retroceder {self.dock_reverse_dist:.2f} m a {self.dock_speed:.2f} m/s vía BackUp'
+        # )
+        # Breve espera para que Nav2 termine de soltar el control del controller
+        self._dock_delay_timer = self.create_timer(self.dock_startup_delay, self._send_backup_goal)
+
+    def _send_backup_goal(self):
+        self._dock_delay_timer.cancel()
+
+        if not self._backup_client.wait_for_server(timeout_sec=10.0):
+            self.get_logger().error('[return_to_base] action backup no disponible. Guardando mapa sin retroceder.')
+            self._save_map()
+            return
+
+        goal = BackUp.Goal()
+        goal.target.x = float(self.dock_reverse_dist)
+        goal.speed = float(self.dock_speed)
+        allowance = max(5.0, (self.dock_reverse_dist / self.dock_speed) * 3.0)
+        goal.time_allowance = Duration(sec=int(allowance))
+
+        self._backup_client.send_goal_async(goal).add_done_callback(self._on_backup_response)
+
+    def _on_backup_response(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().error('[return_to_base] Goal de BackUp rechazado. Guardando mapa sin retroceder.')
+            self._save_map()
+            return
+        # self.get_logger().info('[return_to_base] BackUp aceptado. Retrocediendo...')
+        goal_handle.get_result_async().add_done_callback(self._on_backup_result)
+
+    def _on_backup_result(self, _future):
+        # self.get_logger().info('[return_to_base] Maniobra de dock completada. Guardando mapa...')
+        self._save_map()
+
+    # ── 9. Guardar mapa ───────────────────────────────────────────────────
     def _save_map(self):
         self.get_logger().info('[return_to_base] Esperando servicio /slam_toolbox/serialize_map...')
         if not self._map_client.wait_for_service(timeout_sec=10.0):

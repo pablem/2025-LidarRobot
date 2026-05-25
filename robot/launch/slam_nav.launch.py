@@ -2,9 +2,8 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess, TimerAction
+from launch.actions import IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.actions import Node
 
 
 def generate_launch_description():
@@ -42,31 +41,7 @@ def generate_launch_description():
         actions=[nav2]
     )
 
-    # ── Nodo retorno a base ───────────────────────────────────────────────
-    return_to_base = Node(
-        package='robot',
-        executable='return_to_base',
-        name='return_to_base',
-        output='screen',
-        parameters=[{
-            'exploration_time': 240.0,       # timer máximo de exploración (segundos)
-            'min_exploration_time': 30.0,    # no disparar idle antes de este tiempo
-            'idle_timeout': 8.0,             # segundos sin goals Nav2 → exploración terminada
-            'map_dir': '/home/pablo',
-            'map_base_name': 'explore',
-            'overwrite_map': True,
-            # 'battery_topic': '/battery_state',
-            # 'battery_threshold': 20.0,
-        }]
-    )
-
-    delayed_return_to_base = TimerAction(
-        period=10.0,       # esperar a que Nav2 esté listo antes de arrancar
-        actions=[return_to_base]
-    )
-
     return LaunchDescription([
         slam,
         delayed_nav2,
-        delayed_return_to_base,
     ])

@@ -35,4 +35,10 @@ install(PROGRAMS
   RENAME return_to_base
 )
 
+install(PROGRAMS
+  scripts/undock.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME undock
+)
+
 ament_package()
