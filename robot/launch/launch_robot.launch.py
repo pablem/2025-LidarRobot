@@ -106,17 +106,47 @@ def generate_launch_description():
     #
     # Replace the diff_drive_spawner in the final return with delayed_diff_drive_spawner
 
+    lidar_port = '/dev/serial/by-id/usb-Arduino_LLC_Arduino_Leonardo-if00'
+
     neato_lidar = Node(
         package='xv_11_laser_driver',
         executable='neato_laser_publisher',
         name='neato_laser',
         output='screen',
         parameters=[
-            {'port': '/dev/serial/by-id/usb-Arduino_LLC_Arduino_Leonardo-if00'},
+            {'port': lidar_port},
             {'baud_rate': 115200},
             {'frame_id': 'laser_frame'}
         ]
     )
+
+    motor_on = ExecuteProcess(
+        cmd=['bash', '-c', f'printf "MotorOn\\n" > {lidar_port}'],
+        output='screen',
+        name='lidar_motor_on',
+    )
+
+    motor_on_after_lidar = RegisterEventHandler(
+        event_handler=OnProcessStart(
+            target_action=neato_lidar,
+            on_start=[TimerAction(period=1.0, actions=[motor_on])],
+        )
+    )
+
+    # --- Apagado del motor al cerrar: pendiente. ros2 launch no garantiza ejecutar
+    #     OnShutdown a tiempo en Ctrl+C, así que por ahora el motor queda girando
+    #     al cerrar el launch.
+    
+    # from launch.event_handlers import OnShutdown
+    # motor_off = ExecuteProcess(
+    #     cmd=['bash', '-c',
+    #          f'trap "" INT TERM; for i in 1 2 3 4 5; do printf "MotorOff\\n" > {lidar_port}; sleep 0.2; done'],
+    #     output='screen',
+    #     name='lidar_motor_off',
+    # )
+    # motor_off_on_shutdown = RegisterEventHandler(
+    #     event_handler=OnShutdown(on_shutdown=[motor_off])
+    # )
 
     mpu9250_driver = Node(
         package='mpu9250driver',
@@ -170,10 +200,12 @@ def generate_launch_description():
         # joystick,
         twist_mux,
         neato_lidar,
+        motor_on_after_lidar,
+        # motor_off_on_shutdown,
         delayed_controller_manager,
         delayed_diff_drive_spawner,
         delayed_joint_broad_spawner,
-        mpu9250_driver,      
-        delayed_madgwick,            
+        mpu9250_driver,
+        delayed_madgwick,
         delayed_ekf,
     ])
