@@ -96,6 +96,12 @@ public:
     val_1 = std::atoi(token_1.c_str());
     val_2 = std::atoi(token_2.c_str());
   }
+  float read_battery_voltage()
+  {
+    std::string response = send_msg("b\r");
+    return std::atof(response.c_str());
+  }
+
   void set_motor_values(int val_1, int val_2)
   {
     std::stringstream ss;

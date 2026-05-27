@@ -15,6 +15,12 @@
             <param name="enc_counts_per_rev_left">33667</param>
             <param name="enc_counts_per_rev_right">41800</param>
 
+            <!-- Sensor de batería (opcional, valores por defecto en el código) -->
+            <param name="battery_voltage_min">10.75</param>
+            <param name="battery_voltage_max">12.6</param>
+            <param name="battery_runtime_full_min">120.0</param>
+            <param name="battery_publish_period">10.0</param>
+
         </hardware>
         <joint name="left_wheel_joint">
             <command_interface name="velocity">

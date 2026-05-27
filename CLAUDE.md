@@ -33,7 +33,7 @@ ros2 launch explore_lite explore.launch.py
 Cinco paquetes:
 
 - **`robot/`** — Launch files, URDF/xacro, configs. Sin código ejecutable.
-- **`diffdrive_arduino/`** — Plugin `ros2_control` (`DiffDriveArduinoHardware`) que se comunica con un ESP32 por serial. Lee encoders (`e\r`) y envía comandos de motor (`m val1 val2\r`).
+- **`diffdrive_arduino/`** — Plugin `ros2_control` (`DiffDriveArduinoHardware`) que se comunica con un ESP32 por serial. Lee encoders (`e\r`), envía comandos de motor (`m val1 val2\r`) y lee la tensión de batería (`b\r`). Publica `sensor_msgs/msg/BatteryState` en `/battery_state` y minutos restantes estimados en `/battery_time_remaining` (ver "Sensor de batería").
 - **`xv_11_laser_driver/`** — Nodo ROS 2 (`neato_laser_publisher`) que lee un LiDAR Neato XV-11 via serial (Arduino Leonardo) y publica `sensor_msgs/LaserScan` en `/scan`.
 - **`m-explore-ros2/`** — Exploración autónoma de fronteras (`explore_lite`). Detecta fronteras en el costmap de Nav2 y envía goals via `NavigateToPose`. Probado y funciona.
 - **`serial/`** — Librería C++ de serial de terceros, usada por `diffdrive_arduino`.
@@ -51,6 +51,10 @@ Encoders/Motores (ESP32)
       └── joint_state_broadcaster → /joint_states
 
 /cmd_vel (teleop, Nav2) → twist_mux → diff_drive_controller
+
+Batería (ESP32, comando `b`)
+  → (serial/USB) → diffdrive_arduino → /battery_state (sensor_msgs/BatteryState)
+                                     → /battery_time_remaining (std_msgs/Float32, minutos)
 
 /scan + /odom + /tf → slam_toolbox → /map
 /map + Nav2 → goals de navegación autónoma
@@ -89,6 +93,35 @@ ros2 topic echo /explore/status
 
 # Ver fronteras en RViz (requiere visualize: true en params.yaml)
 # Topic: /explore/frontiers
+```
+
+## Sensor de batería
+
+El firmware del ESP32 responde al comando `b\r` con la tensión total del pack (3S LiPo, ~12.1 V medidos). El hardware interface la lee con `ArduinoComms::read_battery_voltage()` y publica desde un nodo interno (`diffdrive_battery`):
+
+- `/battery_state` — `sensor_msgs/msg/BatteryState`. Solo se tiene la tensión total, así que `cell_voltage` queda vacío y `current`/`charge`/`capacity` van como NaN. `percentage` se calcula linealmente entre `battery_voltage_min` y `battery_voltage_max`. `power_supply_technology` = LIPO.
+- `/battery_time_remaining` — `std_msgs/msg/Float32`, minutos restantes estimados = `percentage * battery_runtime_full_min`.
+
+La lectura se hace en `read()` pero throttleada cada `battery_publish_period` segundos (no en cada ciclo del loop de 100 Hz, para no saturar el serial).
+
+### Parámetros (`robot/description/ros2_control.xacro`, todos opcionales con defaults en el código)
+| Parámetro | Default | Descripción |
+|---|---|---|
+| `battery_voltage_min` | 10.75 V | Tensión a 0% de carga |
+| `battery_voltage_max` | 12.6 V | Tensión a 100% de carga |
+| `battery_runtime_full_min` | 120 min | Autonomía a plena carga (uso intensivo); ajustable |
+| `battery_publish_period` | 10 s | Período entre lecturas/publicaciones |
+
+### Depuración
+```bash
+ros2 topic echo /battery_state
+ros2 topic echo /battery_time_remaining
+```
+
+### GUI de monitoreo
+Pequeña ventana Tkinter (`robot/scripts/battery_monitor.py`) con voltaje, barra de carga coloreada (verde >50 %, naranja 20–50 %, rojo <20 %), porcentaje, minutos restantes y estado. RViz2 **no** tiene display nativo para `BatteryState`, por eso esta GUI. **Corre en la PC, no en la Raspberry** (que es headless); se suscribe por la red DDS.
+```bash
+ros2 run robot battery_monitor
 ```
 
 ## Tests

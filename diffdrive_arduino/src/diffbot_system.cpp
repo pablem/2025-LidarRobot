@@ -14,6 +14,7 @@
 
 #include "diffbot_system.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -55,7 +56,24 @@ hardware_interface::CallbackReturn DiffDriveArduinoHardware::on_init(
   {
     RCLCPP_INFO(rclcpp::get_logger("DiffDriveArduinoHardware"), "PID values not supplied, using defaults.");
   }
-  
+
+  if (info_.hardware_parameters.count("battery_voltage_min") > 0)
+  {
+    cfg_.battery_voltage_min = std::stod(info_.hardware_parameters["battery_voltage_min"]);
+  }
+  if (info_.hardware_parameters.count("battery_voltage_max") > 0)
+  {
+    cfg_.battery_voltage_max = std::stod(info_.hardware_parameters["battery_voltage_max"]);
+  }
+  if (info_.hardware_parameters.count("battery_runtime_full_min") > 0)
+  {
+    cfg_.battery_runtime_full_min = std::stod(info_.hardware_parameters["battery_runtime_full_min"]);
+  }
+  if (info_.hardware_parameters.count("battery_publish_period") > 0)
+  {
+    cfg_.battery_publish_period = std::stod(info_.hardware_parameters["battery_publish_period"]);
+  }
+
 
   wheel_l_.setup(cfg_.left_wheel_name, cfg_.enc_counts_per_rev_left);
   wheel_r_.setup(cfg_.right_wheel_name, cfg_.enc_counts_per_rev_right);
@@ -152,6 +170,14 @@ hardware_interface::CallbackReturn DiffDriveArduinoHardware::on_configure(
     comms_.disconnect();
   }
   comms_.connect(cfg_.device, cfg_.baud_rate, cfg_.timeout_ms);
+
+  battery_node_ = std::make_shared<rclcpp::Node>("diffdrive_battery");
+  battery_pub_ = battery_node_->create_publisher<sensor_msgs::msg::BatteryState>(
+    "battery_state", rclcpp::QoS(10));
+  battery_time_pub_ = battery_node_->create_publisher<std_msgs::msg::Float32>(
+    "battery_time_remaining", rclcpp::QoS(10));
+  battery_read_initialized_ = false;
+
   RCLCPP_INFO(rclcpp::get_logger("DiffDriveArduinoHardware"), "Successfully configured!");
 
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -198,7 +224,7 @@ hardware_interface::CallbackReturn DiffDriveArduinoHardware::on_deactivate(
 }
 
 hardware_interface::return_type DiffDriveArduinoHardware::read(
-  const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
+  const rclcpp::Time & time, const rclcpp::Duration & period)
 {
   if (!comms_.connected())
   {
@@ -206,6 +232,14 @@ hardware_interface::return_type DiffDriveArduinoHardware::read(
   }
 
   comms_.read_encoder_values(wheel_l_.enc, wheel_r_.enc);
+
+  if (!battery_read_initialized_ ||
+      (time - last_battery_read_).seconds() >= cfg_.battery_publish_period)
+  {
+    last_battery_read_ = time;
+    battery_read_initialized_ = true;
+    publish_battery_state(time);
+  }
 
   double delta_seconds = period.seconds();
 
@@ -232,6 +266,38 @@ hardware_interface::return_type diffdrive_arduino ::DiffDriveArduinoHardware::wr
   int motor_r_counts_per_loop = wheel_r_.cmd / wheel_r_.rads_per_count / cfg_.loop_rate;
   comms_.set_motor_values(motor_l_counts_per_loop, motor_r_counts_per_loop);
   return hardware_interface::return_type::OK;
+}
+
+void DiffDriveArduinoHardware::publish_battery_state(const rclcpp::Time & time)
+{
+  float voltage = comms_.read_battery_voltage();
+
+  double range = cfg_.battery_voltage_max - cfg_.battery_voltage_min;
+  double percentage = range > 0.0 ? (voltage - cfg_.battery_voltage_min) / range : 0.0;
+  percentage = std::clamp(percentage, 0.0, 1.0);
+
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+
+  sensor_msgs::msg::BatteryState msg;
+  msg.header.stamp = time;
+  msg.header.frame_id = "base_link";
+  msg.voltage = voltage;
+  msg.temperature = nan;
+  msg.current = nan;
+  msg.charge = nan;
+  msg.capacity = nan;
+  msg.design_capacity = nan;
+  msg.percentage = static_cast<float>(percentage);
+  msg.power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_DISCHARGING;
+  msg.power_supply_health = sensor_msgs::msg::BatteryState::POWER_SUPPLY_HEALTH_GOOD;
+  msg.power_supply_technology = sensor_msgs::msg::BatteryState::POWER_SUPPLY_TECHNOLOGY_LIPO;
+  msg.present = true;
+  // cell_voltage queda vacío: solo se mide la tensión total del pack, no por celda.
+  battery_pub_->publish(msg);
+
+  std_msgs::msg::Float32 time_msg;
+  time_msg.data = static_cast<float>(percentage * cfg_.battery_runtime_full_min);
+  battery_time_pub_->publish(time_msg);
 }
 
 }  // namespace diffdrive_arduino

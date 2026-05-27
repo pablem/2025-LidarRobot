@@ -26,9 +26,13 @@
 #include "rclcpp/clock.hpp"
 #include "rclcpp/duration.hpp"
 #include "rclcpp/macros.hpp"
+#include "rclcpp/node.hpp"
+#include "rclcpp/publisher.hpp"
 #include "rclcpp/time.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
+#include "sensor_msgs/msg/battery_state.hpp"
+#include "std_msgs/msg/float32.hpp"
 #include "visibility_control.h"
 
 #include "arduino_comms.hpp"
@@ -53,6 +57,10 @@ struct Config
   int pid_d = 0;
   int pid_i = 0;
   int pid_o = 0;
+  double battery_voltage_min = 10.75;
+  double battery_voltage_max = 12.6;
+  double battery_runtime_full_min = 120.0;  // autonomía a plena carga (uso intensivo), en minutos
+  double battery_publish_period = 10.0;     // segundos entre lecturas/publicaciones de batería
 };
 
 
@@ -96,10 +104,18 @@ public:
 
 private:
 
+  void publish_battery_state(const rclcpp::Time & time);
+
   ArduinoComms comms_;
   Config cfg_;
   Wheel wheel_l_;
   Wheel wheel_r_;
+
+  std::shared_ptr<rclcpp::Node> battery_node_;
+  rclcpp::Publisher<sensor_msgs::msg::BatteryState>::SharedPtr battery_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr battery_time_pub_;
+  rclcpp::Time last_battery_read_;
+  bool battery_read_initialized_ = false;
 };
 
 }  // namespace diffdrive_arduino

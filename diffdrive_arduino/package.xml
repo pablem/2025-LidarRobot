@@ -19,6 +19,8 @@
   <depend>pluginlib</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_lifecycle</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
   <depend>libserial-dev</depend>
 
   <exec_depend>ros2_controllers_test_nodes</exec_depend>

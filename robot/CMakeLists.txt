@@ -41,4 +41,10 @@ install(PROGRAMS
   RENAME undock
 )
 
+install(PROGRAMS
+  scripts/battery_monitor.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME battery_monitor
+)
+
 ament_package()
