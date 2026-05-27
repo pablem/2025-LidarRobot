@@ -24,7 +24,9 @@ COLOR_WARN = '#ef6c00'
 COLOR_LOW = '#c62828'
 COLOR_STALE = '#9e9e9e'
 
-STALE_TIMEOUT = 5.0   # s sin mensajes → "sin conexión"
+# s sin mensajes. Debe ser mayor que battery_publish_period
+# (> 10 s)
+STALE_TIMEOUT = 30.0
 
 # power_supply_status (sensor_msgs/BatteryState)
 STATUS_TEXT = {
@@ -42,8 +44,10 @@ class BatteryMonitor(Node):
 
         self.declare_parameter('battery_topic', 'battery_state')
         self.declare_parameter('time_topic', 'battery_time_remaining')
+        self.declare_parameter('stale_timeout', STALE_TIMEOUT)
         battery_topic = self.get_parameter('battery_topic').value
         time_topic = self.get_parameter('time_topic').value
+        self.stale_timeout = self.get_parameter('stale_timeout').value
 
         self.last_state = None
         self.last_minutes = None
@@ -63,7 +67,7 @@ class BatteryMonitor(Node):
         if self.last_rx is None:
             return True
         elapsed = (self.get_clock().now() - self.last_rx).nanoseconds * 1e-9
-        return elapsed > STALE_TIMEOUT
+        return elapsed > self.stale_timeout
 
 
 class BatteryGui:
