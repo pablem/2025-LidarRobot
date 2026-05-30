@@ -142,9 +142,13 @@ controller_server:
     # 10 Hz
     controller_frequency: 10.0
 
-    min_x_velocity_threshold: 0.001
-    min_y_velocity_threshold: 0.5   # ignorado en robot diferencial
-    min_theta_velocity_threshold: 0.001
+    # NO subir estos sin volver a probar evasión: DWB usa la velocidad feedback
+    # como velocidad inicial al simular trayectorias. Si se truncan a 0 mientras
+    # el robot se mueve, las predicciones de qué libra el obstáculo dejan de
+    # corresponder a la realidad → roce con obstáculos (probado 2026-05-29).
+    min_x_velocity_threshold: 0.002
+    min_y_velocity_threshold: 0.002   # ignorado en robot diferencial
+    min_theta_velocity_threshold: 0.005
 
     failure_tolerance: 0.3
     progress_checker_plugin: "progress_checker"
@@ -213,6 +217,9 @@ controller_server:
       # Estos puntajes determinan cómo DWB elige la mejor trayectoria.
       # Los valores son estándar
       critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
+      Oscillation.scale: 6.0  # 5.0 
+      Oscillation.oscillation_reset_dist: 0.05
+      Oscillation.oscillation_reset_angle: 0.2  
       BaseObstacle.scale: 0.5 #1.0 # 0.2 era demasiado bajo vs PathAlign 32.0 → seguía ruta aunque hubiera obstáculos
       PathAlign.scale: 24.0  # reducido de 32.0; da más margen a BaseObstacle para desviar de ruta
       PathAlign.forward_point_distance: 0.1
@@ -231,8 +238,8 @@ controller_server_rclcpp_node:
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 8.0  # subido de 5.0; compensa costmap 100x100 celdas (antes 60x60 a 0.05m)
-      # Bajarlo (0.7~0.6) si la RPi4 se satura con update_frequency: 8.0 (aparecen muchos Control loop missed desired rate) 
+      update_frequency: 7.0  # 8.0 aliviar Pi
+      # Si vuelve a saturar, bajar a 6.0 (aparecen muchos Control loop missed desired rate)
       publish_frequency: 3.0
       global_frame: odom
       robot_base_frame: base_link
@@ -262,7 +269,7 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.30
+        inflation_radius: 0.29
         cost_scaling_factor: 1.2  # factor bajo = gradiente extendido → planner prefiere el centro del pasillo (antes 2.5 era abrupto)
 
       obstacle_layer:
@@ -378,7 +385,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 1.2  # gradiente extendido → NavFn prefiere rutas alejadas de esquinas (antes 2.0 era abrupto)
-        inflation_radius: 0.30
+        inflation_radius: 0.29
 
       always_send_full_costmap: True
 

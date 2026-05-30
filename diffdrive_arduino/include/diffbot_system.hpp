@@ -60,7 +60,7 @@ struct Config
   double battery_voltage_min = 10.75;
   double battery_voltage_max = 12.6;
   double battery_runtime_full_min = 120.0;  // autonomía a plena carga (uso intensivo), en minutos
-  double battery_publish_period = 10.0;     // segundos entre lecturas/publicaciones de batería
+  double battery_publish_period = 60.0;     // segundos entre lecturas/publicaciones de batería
 };
 
 

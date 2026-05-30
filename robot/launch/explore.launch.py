@@ -44,9 +44,9 @@ def generate_launch_description():
         name='return_to_base',
         output='screen',
         parameters=[{
-            'exploration_time': 240.0,
+            'exploration_time': 360.0,
             'min_exploration_time': 30.0,
-            'idle_timeout': 8.0,
+            'idle_timeout': 18.0,  # bajo carga (lab) Nav2 a veces queda sin goals 8-10s; 18s evita falsos positivos
             'map_dir': '/home/pablo',
             'map_base_name': 'explore',
             'overwrite_map': True,

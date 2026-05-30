@@ -233,8 +233,12 @@ hardware_interface::return_type DiffDriveArduinoHardware::read(
 
   comms_.read_encoder_values(wheel_l_.enc, wheel_r_.enc);
 
-  if (!battery_read_initialized_ ||
-      (time - last_battery_read_).seconds() >= cfg_.battery_publish_period)
+  // Solo consultar batería con el robot quieto: el handler 'b' del firmware
+  // pierde ticks de encoder y mete drift de odometría que degrada SLAM y explore.
+  const bool stopped = std::abs(wheel_l_.cmd) < 1e-3 && std::abs(wheel_r_.cmd) < 1e-3;
+  if (stopped &&
+      (!battery_read_initialized_ ||
+       (time - last_battery_read_).seconds() >= cfg_.battery_publish_period))
   {
     last_battery_read_ = time;
     battery_read_initialized_ = true;

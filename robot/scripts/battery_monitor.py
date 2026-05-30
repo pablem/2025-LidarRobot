@@ -24,9 +24,10 @@ COLOR_WARN = '#ef6c00'
 COLOR_LOW = '#c62828'
 COLOR_STALE = '#9e9e9e'
 
-# s sin mensajes. Debe ser mayor que battery_publish_period
-# (> 10 s)
-STALE_TIMEOUT = 30.0
+# s sin mensajes para marcar "sin conexión".
+# Debe cubrir un tramo de exploración largo sin pausas, porque ahora
+# las lecturas solo se hacen con el robot quieto (ver diffbot_system.cpp).
+STALE_TIMEOUT = 180.0
 
 # power_supply_status (sensor_msgs/BatteryState)
 STATUS_TEXT = {

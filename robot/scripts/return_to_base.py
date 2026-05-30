@@ -39,7 +39,7 @@ class ReturnToBase(Node):
         self.declare_parameter('map_base_name', 'explore')
         self.declare_parameter('overwrite_map', True)
         self.declare_parameter('battery_topic', '')
-        self.declare_parameter('battery_threshold', 20.0)
+        self.declare_parameter('battery_threshold', 10.90)
         # Maniobra de docking final (Nav2 BackUp action)
         self.declare_parameter('dock_x_offset', 0.40)    # meta en X en lugar de 0 (m)
         self.declare_parameter('dock_yaw_offset', 0.0)   # corrección de yaw del goal (rad)
@@ -240,7 +240,9 @@ class ReturnToBase(Node):
         goal = BackUp.Goal()
         goal.target.x = float(self.dock_reverse_dist)
         goal.speed = float(self.dock_speed)
-        allowance = max(5.0, (self.dock_reverse_dist / self.dock_speed) * 3.0)
+        # Multiplicador 5× sobre el tiempo nominal: bajo carga de CPU el behavior_server
+        # puede pausarse en medio del BackUp; no abortar la acción.
+        allowance = max(5.0, (self.dock_reverse_dist / self.dock_speed) * 5.0)
         goal.time_allowance = Duration(sec=int(allowance))
 
         self._backup_client.send_goal_async(goal).add_done_callback(self._on_backup_response)

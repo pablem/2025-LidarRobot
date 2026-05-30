@@ -102,7 +102,7 @@ El firmware del ESP32 responde al comando `b\r` con la tensión total del pack (
 - `/battery_state` — `sensor_msgs/msg/BatteryState`. Solo se tiene la tensión total, así que `cell_voltage` queda vacío y `current`/`charge`/`capacity` van como NaN. `percentage` se calcula linealmente entre `battery_voltage_min` y `battery_voltage_max`. `power_supply_technology` = LIPO.
 - `/battery_time_remaining` — `std_msgs/msg/Float32`, minutos restantes estimados = `percentage * battery_runtime_full_min`.
 
-La lectura se hace en `read()` pero throttleada cada `battery_publish_period` segundos (no en cada ciclo del loop de 100 Hz, para no saturar el serial).
+La lectura se hace en `read()` pero throttleada cada `battery_publish_period` segundos y **solo cuando ambos comandos de rueda son ~0** (`|wheel.cmd| < 1e-3`). Esto evita que el handler `b\r` del firmware ESP32 — que pierde ticks de encoder por deshabilitar interrupciones durante `analogRead()` — degrade la odometría durante el movimiento. Consecuencia: en exploraciones largas sin pausas, la batería puede no actualizarse por minutos; es esperado.
 
 ### Parámetros (`robot/description/ros2_control.xacro`, todos opcionales con defaults en el código)
 | Parámetro | Default | Descripción |
@@ -110,7 +110,7 @@ La lectura se hace en `read()` pero throttleada cada `battery_publish_period` se
 | `battery_voltage_min` | 10.75 V | Tensión a 0% de carga |
 | `battery_voltage_max` | 12.6 V | Tensión a 100% de carga |
 | `battery_runtime_full_min` | 120 min | Autonomía a plena carga (uso intensivo); ajustable |
-| `battery_publish_period` | 10 s | Período entre lecturas/publicaciones |
+| `battery_publish_period` | 60 s | Período mínimo entre lecturas (solo se dispara con robot quieto) |
 
 ### Depuración
 ```bash
