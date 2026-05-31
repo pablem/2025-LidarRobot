@@ -3,8 +3,7 @@
 return_to_base.py
 Dispara el retorno a odom(0,0,0) por cualquiera de tres causas:
   1. Timer: transcurrió exploration_time segundos.
-  2. Idle:  Nav2 lleva idle_timeout segundos sin goals activos (explore_lite terminó)
-            pero solo después de min_exploration_time segundos desde el arranque.
+  2. Idle:  Nav2 lleva idle_timeout segundos sin goals activos (explore_lite terminó).
   3. Batería baja (opcional, activar con battery_topic).
 Al llegar guarda el mapa via /slam_toolbox/serialize_map.
 """
@@ -18,10 +17,9 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from action_msgs.msg import GoalStatus, GoalStatusArray
-from builtin_interfaces.msg import Duration
-from nav2_msgs.action import NavigateToPose, BackUp
+from nav2_msgs.action import NavigateToPose
 from slam_toolbox.srv import SerializePoseGraph
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Twist
 from std_msgs.msg import Bool
 from sensor_msgs.msg import BatteryState
 from explore_lite_msgs.msg import ExploreStatus
@@ -33,23 +31,23 @@ class ReturnToBase(Node):
 
         # ── Parámetros configurables ──────────────────────────────────────
         self.declare_parameter('exploration_time', 150.0)
-        self.declare_parameter('min_exploration_time', 30.0)  # no activar idle antes de esto
-        self.declare_parameter('idle_timeout', 10.0)           # segundos sin goals → exploración terminada
+        self.declare_parameter('idle_timeout', 20.0)           # segundos sin goals → exploración terminada
         self.declare_parameter('map_dir', '/home/pablo')
         self.declare_parameter('map_base_name', 'explore')
         self.declare_parameter('overwrite_map', True)
-        self.declare_parameter('battery_topic', '')
-        self.declare_parameter('battery_threshold', 10.90)
-        # Maniobra de docking final (Nav2 BackUp action)
+        self.declare_parameter('battery_topic', '/battery_state')
+        self.declare_parameter('battery_threshold', 10.85)  # VOLTAJE (V) del pack; retorna si baja de esto
+        # Maniobra de docking final (retroceso open-loop por /cmd_vel, ignora obstáculos)
         self.declare_parameter('dock_x_offset', 0.40)    # meta en X en lugar de 0 (m)
         self.declare_parameter('dock_yaw_offset', 0.0)   # corrección de yaw del goal (rad)
-        self.declare_parameter('dock_reverse_dist', 0.45) # distancia de retroceso al dock (m)
+        self.declare_parameter('dock_reverse_dist', 0.47) # distancia de retroceso al dock (m)
         self.declare_parameter('dock_speed', 0.10)        # velocidad de la maniobra (m/s)
-        self.declare_parameter('dock_startup_delay', 1.0) # s — espera tras goal Nav2 antes de BackUp
+        self.declare_parameter('dock_startup_delay', 1.0) # s — espera tras goal Nav2 antes de retroceder
+        self.declare_parameter('dock_cmd_vel_topic', 'cmd_vel')  # entrada de twist_mux (prioridad navigation)
+        self.declare_parameter('dock_publish_rate', 20.0)        # Hz de republicación del Twist (timeout twist_mux = 0.5s)
         # ─────────────────────────────────────────────────────────────────
 
         self.exploration_time      = self.get_parameter('exploration_time').value
-        self.min_exploration_time  = self.get_parameter('min_exploration_time').value
         self.idle_timeout          = self.get_parameter('idle_timeout').value
         self.map_dir               = self.get_parameter('map_dir').value
         self.map_base_name         = self.get_parameter('map_base_name').value
@@ -61,21 +59,22 @@ class ReturnToBase(Node):
         self.dock_reverse_dist     = self.get_parameter('dock_reverse_dist').value
         self.dock_speed            = self.get_parameter('dock_speed').value
         self.dock_startup_delay    = self.get_parameter('dock_startup_delay').value
+        self.dock_cmd_vel_topic    = self.get_parameter('dock_cmd_vel_topic').value
+        self.dock_publish_rate     = self.get_parameter('dock_publish_rate').value
 
         self._returning          = False
         self._nav_was_active     = False  # Nav2 tuvo al menos un goal activo
-        self._start_time         = self.get_clock().now()
         self._last_active_time   = self.get_clock().now()
         self._update_timer       = None
 
         self._nav_client    = ActionClient(self, NavigateToPose, 'navigate_to_pose')
-        self._backup_client = ActionClient(self, BackUp, 'backup')
         self._map_client    = self.create_client(SerializePoseGraph, '/slam_toolbox/serialize_map')
         self._explore_pub   = self.create_publisher(Bool, '/explore/resume', 10)
+        self._cmd_vel_pub   = self.create_publisher(Twist, self.dock_cmd_vel_topic, 10)
 
         self.get_logger().info(
             f'[return_to_base] Timer: {self.exploration_time:.0f}s | '
-            f'Idle: {self.idle_timeout:.0f}s (activo tras {self.min_exploration_time:.0f}s) | '
+            f'Idle: {self.idle_timeout:.0f}s | '
             f'Overwrite: {self.overwrite_map}'
         )
 
@@ -96,12 +95,12 @@ class ReturnToBase(Node):
         _status_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         self.create_subscription(ExploreStatus, '/explore/status', self._on_explore_status, _status_qos)
 
-        # Batería (opcional)
+        # Batería
         if self.battery_topic:
             self.create_subscription(BatteryState, self.battery_topic, self._on_battery, 10)
             self.get_logger().info(
                 f'[return_to_base] Monitoreando batería en {self.battery_topic} '
-                f'(umbral: {self.battery_threshold:.0f}%)'
+                f'(umbral: {self.battery_threshold:.2f}V)'
             )
 
     # ── 1. Timeout de exploración ─────────────────────────────────────────
@@ -120,9 +119,6 @@ class ReturnToBase(Node):
         if self._returning or not self._nav_was_active:
             return
         now = self.get_clock().now()
-        elapsed = (now - self._start_time).nanoseconds / 1e9
-        if elapsed < self.min_exploration_time:
-            return
         idle_secs = (now - self._last_active_time).nanoseconds / 1e9
         if idle_secs >= self.idle_timeout:
             self._explore_timer.cancel()
@@ -136,12 +132,12 @@ class ReturnToBase(Node):
 
     # ── 4. Batería baja ───────────────────────────────────────────────────
     def _on_battery(self, msg: BatteryState):
-        pct = msg.percentage * 100.0
-        if math.isnan(pct) or self._returning:
+        voltage = msg.voltage
+        if math.isnan(voltage) or self._returning:
             return
-        if pct < self.battery_threshold:
+        if voltage < self.battery_threshold:
             self._explore_timer.cancel()
-            self._trigger_return(f'Batería baja ({pct:.1f}% < {self.battery_threshold:.0f}%)')
+            self._trigger_return(f'Batería baja ({voltage:.2f}V < {self.battery_threshold:.2f}V)')
 
     # ── Punto de entrada común para todos los triggers ────────────────────
     def _trigger_return(self, reason: str):
@@ -216,49 +212,41 @@ class ReturnToBase(Node):
                 f'[return_to_base] Navegación terminó con status {result.status}.'
             )
 
-    # ── 8. Maniobra de retroceso al dock (Nav2 BackUp action) ────────────
+    # ── 8. Maniobra de retroceso al dock (open-loop por /cmd_vel) ─────────
+    # A diferencia de la acción Nav2 BackUp, esto NO chequea colisiones contra
+    # el costmap local: publica Twist crudo en cmd_vel (vía twist_mux) para que
+    # el robot retroceda contra la pared y se alinee. La distancia se calibra
+    # empíricamente con el parámetro dock_reverse_dist.
     def _do_dock_reverse(self):
         if self.dock_reverse_dist <= 0.0:
             self._save_map()
             return
 
-        # self.get_logger().info(
-        #     f'[return_to_base] Esperando {self.dock_startup_delay:.1f} s antes de '
-        #     f'retroceder {self.dock_reverse_dist:.2f} m a {self.dock_speed:.2f} m/s vía BackUp'
-        # )
-        # Breve espera para que Nav2 termine de soltar el control del controller
-        self._dock_delay_timer = self.create_timer(self.dock_startup_delay, self._send_backup_goal)
+        # espera a que Nav2 termine 
+        self._dock_delay_timer = self.create_timer(self.dock_startup_delay, self._start_dock_reverse)
 
-    def _send_backup_goal(self):
+    def _start_dock_reverse(self):
         self._dock_delay_timer.cancel()
 
-        if not self._backup_client.wait_for_server(timeout_sec=10.0):
-            self.get_logger().error('[return_to_base] action backup no disponible. Guardando mapa sin retroceder.')
+        self._reverse_duration = self.dock_reverse_dist / self.dock_speed
+        self._reverse_start    = self.get_clock().now()
+        self.get_logger().info(
+            f'[return_to_base] Retrocediendo {self.dock_reverse_dist:.2f} m a '
+            f'{self.dock_speed:.2f} m/s (~{self._reverse_duration:.1f} s, open-loop, ignora obstáculos)...'
+        )
+        self._reverse_timer = self.create_timer(1.0 / self.dock_publish_rate, self._reverse_tick)
+
+    def _reverse_tick(self):
+        elapsed = (self.get_clock().now() - self._reverse_start).nanoseconds / 1e9
+        if elapsed >= self._reverse_duration:
+            self._reverse_timer.cancel()
+            self._cmd_vel_pub.publish(Twist())  # parada explícita
+            self.get_logger().info('[return_to_base] Maniobra de dock completa. Guardando mapa...')
             self._save_map()
             return
-
-        goal = BackUp.Goal()
-        goal.target.x = float(self.dock_reverse_dist)
-        goal.speed = float(self.dock_speed)
-        # Multiplicador 5× sobre el tiempo nominal: bajo carga de CPU el behavior_server
-        # puede pausarse en medio del BackUp; no abortar la acción.
-        allowance = max(5.0, (self.dock_reverse_dist / self.dock_speed) * 5.0)
-        goal.time_allowance = Duration(sec=int(allowance))
-
-        self._backup_client.send_goal_async(goal).add_done_callback(self._on_backup_response)
-
-    def _on_backup_response(self, future):
-        goal_handle = future.result()
-        if not goal_handle.accepted:
-            self.get_logger().error('[return_to_base] Goal de BackUp rechazado. Guardando mapa sin retroceder.')
-            self._save_map()
-            return
-        # self.get_logger().info('[return_to_base] BackUp aceptado. Retrocediendo...')
-        goal_handle.get_result_async().add_done_callback(self._on_backup_result)
-
-    def _on_backup_result(self, _future):
-        # self.get_logger().info('[return_to_base] Maniobra de dock completada. Guardando mapa...')
-        self._save_map()
+        cmd = Twist()
+        cmd.linear.x = -float(self.dock_speed)  # retroceso
+        self._cmd_vel_pub.publish(cmd)
 
     # ── 9. Guardar mapa ───────────────────────────────────────────────────
     def _save_map(self):

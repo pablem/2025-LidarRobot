@@ -90,7 +90,8 @@ bt_navigator:
     # URDF usa base_link como frame principal?
     robot_base_frame: base_link
     odom_topic: /odom
-    default_bt_xml_filename: "navigate_w_replanning_and_recovery.xml"
+    # Humble: el nombre correcto lleva "to_pose"
+    default_bt_xml_filename: "navigate_to_pose_w_replanning_and_recovery.xml"
     bt_loop_duration: 10
     default_server_timeout: 20
     # Groot: visualizador del árbol de comportamiento
@@ -175,7 +176,10 @@ controller_server:
       debug_trajectory_details: True
 
       # ── VELOCIDADES MÁXIMAS Y MÍNIMAS ────────────────────────────────────
-      min_vel_x: 0.0     # retroceso desactivado
+      min_vel_x: 0.0     # forward-only en crucero (estado conocido-bueno: "esquiva bien", no embiste).
+                         # El escape de acuñamientos lo maneja el recovery BackUp del BT (0.30m), que es
+                         # consciente de colisiones. NO rehabilitar reversa acá (-0.10) sin aceptar la
+                         # "reversa de crucero": DWB la elegía para tramos largos. Ver memoria nav2-dwb-reverse.
       min_vel_y: 0.0
       max_vel_x: 0.18
       max_vel_y: 0.0
@@ -217,10 +221,12 @@ controller_server:
       # Estos puntajes determinan cómo DWB elige la mejor trayectoria.
       # Los valores son estándar
       critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
-      Oscillation.scale: 6.0  # 5.0 
+      # NOTA: NO agregar PreferForward acá. Probado 2026-05-30: con BaseObstacle.scale=0.5,
+      # cualquier scale útil de PreferForward pesa más que la evitación de obstáculos
+      Oscillation.scale: 6.0  # 5.0
       Oscillation.oscillation_reset_dist: 0.05
       Oscillation.oscillation_reset_angle: 0.2  
-      BaseObstacle.scale: 0.5 #1.0 # 0.2 era demasiado bajo vs PathAlign 32.0 → seguía ruta aunque hubiera obstáculos
+      BaseObstacle.scale: 1.0 #0.5 # 0.2 era demasiado bajo vs PathAlign 32.0 → seguía ruta aunque hubiera obstáculos
       PathAlign.scale: 24.0  # reducido de 32.0; da más margen a BaseObstacle para desviar de ruta
       PathAlign.forward_point_distance: 0.1
       GoalAlign.scale: 24.0
@@ -248,17 +254,17 @@ local_costmap:
       transform_tolerance: 0.5  # delay observado en map→odom llega a 0.247s; default 0.3s era insuficiente
 
       # ── TAMAÑO DEL COSTMAP LOCAL ──────────────────────────────────────────
-      # 3x3 metros es el área alrededor del robot que Nav2 usa para evitar obstáculos.
-      # en 3x3 para pasillos estrechos.
-      width: 3
-      height: 3
+      # 4x4 metros es el área alrededor del robot 
+      width: 4
+      height: 4
       resolution: 0.03  # 3cm/celda; antes 0.05 — local costmap (100x100 celdas vs 60x60)
 
       # ── RADIO DEL ROBOT ───────────────────────────────────────────────────
-      # robot_radius: 0.225
-      # Usar footprint en lugar de robot_radius; ancho 0.45 y largo 0.35
-      # footprint: "[ [-0.175, -0.23], [-0.175, 0.23], [0.175, 0.23], [0.175, -0.23] ]"
-      footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # +1cm por lado
+      # Modelo CIRCULAR (no footprint): base_link está casi atrás (footprint iba de x=-0.06 a 0.28),
+      # el centro de rotación está corrido → al girar en el lugar el frente barre un arco grande
+      robot_radius: 0.34
+      # footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # rectángulo real
+      
       # ── CAPAS DEL COSTMAP ─────────────────────────────────────────────────
       # obstacle_layer: obstáculos 2D detectados por el lidar 
       # voxel_layer: obstáculos 3D (no usar, para cámaras, sensores 3D)
@@ -269,8 +275,8 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.29
-        cost_scaling_factor: 1.2  # factor bajo = gradiente extendido → planner prefiere el centro del pasillo (antes 2.5 era abrupto)
+        inflation_radius: 0.38 # DEBE ser >= robot_radius (0.38)
+        cost_scaling_factor: 1.2  # gradiente de centrado (solo actúa si inflation_radius > robot_radius)
 
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -282,6 +288,9 @@ local_costmap:
           clearing: True
           marking: True
           data_type: "LaserScan"
+          observation_persistence: 6.0    # subido de 1.5: el XV-11 (1°/rayo) detecta obstáculos
+                                          # chicos (~5 cm) de forma intermitente; retenerlos para evitar que
+                                          # el raytracing los borre entre escaneos.
           raytrace_max_range: 2.0   # no borra celdas más allá de 2m
           raytrace_min_range: 0.17  # XV-11 no confiable bajo 15cm; lecturas menores no borran
           obstacle_max_range: 3.0   # no marca obstáculos más allá de 3m
@@ -330,10 +339,9 @@ global_costmap:
       transform_tolerance: 0.5  # ídem local_costmap
 
       # ── RADIO DEL ROBOT (global) ──────────────────────────────────────────
-      # Mismo valor que en local_costmap.
-      # robot_radius: 0.225
-      # footprint: "[ [-0.175, -0.23], [-0.175, 0.23], [0.175, 0.23], [0.175, -0.23] ]"
-      footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # +1cm por lado
+      # Modelo CIRCULAR
+      robot_radius: 0.34
+      # footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # rectángulo real
 
       resolution: 0.03  # 3cm/celda; antes 0.05 — global costmap
       track_unknown_space: true
@@ -351,10 +359,12 @@ global_costmap:
           clearing: True
           marking: True
           data_type: "LaserScan"
+          # Retiene el scan x seg: 
+          observation_persistence: 15.0
           raytrace_max_range: 3.0
-          raytrace_min_range: 0.0
+          raytrace_min_range: 0.17
           obstacle_max_range: 2.5
-          obstacle_min_range: 0.0
+          obstacle_min_range: 0.17
 
      
       # voxel_layer:
@@ -385,7 +395,9 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 1.2  # gradiente extendido → NavFn prefiere rutas alejadas de esquinas (antes 2.0 era abrupto)
-        inflation_radius: 0.29
+        # 0.40 > radio circunscripto (~0.37 m): goals/frontiers pegados a obstáculos
+        # Siempre debe ser MAYOR que el local
+        inflation_radius: 0.40
 
       always_send_full_costmap: True
 
@@ -426,21 +438,23 @@ planner_server_rclcpp_node:
   ros__parameters:
     use_sim_time: False
 
-recoveries_server:
+# CORRECCIÓN EN EL NOMBRE DEL NODO DE RECUPERACIÓN:
+# en Humble navigation_launch.py lanza el nodo "behavior_server" (NO "recoveries_server")
+behavior_server:
   ros__parameters:
     costmap_topic: local_costmap/costmap_raw
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
-    recovery_plugins: ["spin", "backup", "wait"]
+    behavior_plugins: ["spin", "backup", "wait"]
     spin:
-      plugin: "nav2_recoveries/Spin"
+      plugin: "nav2_behaviors/Spin"
     backup:
-      plugin: "nav2_recoveries/BackUp"
+      plugin: "nav2_behaviors/BackUp"
     wait:
-      plugin: "nav2_recoveries/Wait"
+      plugin: "nav2_behaviors/Wait"
     global_frame: odom
     robot_base_frame: base_link
-    transform_timeout: 0.1
+    transform_tolerance: 0.1   # nombre correcto (antes transform_timeout, ignorado)
     use_sim_time: False #true
 
     simulate_ahead_time: 2.0

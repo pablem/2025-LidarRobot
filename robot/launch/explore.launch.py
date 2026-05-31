@@ -11,7 +11,7 @@ def generate_launch_description():
 
     pkg_share = get_package_share_directory('robot')
 
-    # ── Undock: avanza 20 cm en línea recta para salir de la terminal de carga ──
+    # ── Undock: avanza x cm en línea recta para salir de la terminal de carga ──
     undock = Node(
         package='robot',
         executable='undock',
@@ -34,7 +34,7 @@ def generate_launch_description():
         }.items()
     )
 
-    # Esperar a que undock termine antes de explorar (~2 s de maniobra + margen)
+    # Esperar a que undock termine antes de explorar (x seg de maniobra + margen)
     delayed_explore = TimerAction(period=5.0, actions=[explore])
 
     # ── return_to_base: monitorea exploración, vuelve al dock y guarda mapa ─
@@ -45,17 +45,16 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'exploration_time': 360.0,
-            'min_exploration_time': 30.0,
-            'idle_timeout': 18.0,  # bajo carga (lab) Nav2 a veces queda sin goals 8-10s; 18s evita falsos positivos
+            'idle_timeout': 40.0,  # segundos sin nuevos objetivos antes de volver
             'map_dir': '/home/pablo',
             'map_base_name': 'explore',
             'overwrite_map': True,
             # Maniobra de docking: navega a (dock_x_offset, 0) y retrocede al dock
             'dock_x_offset': 0.40,      # metros delante del dock
-            'dock_reverse_dist': 0.45,  # metros de retroceso final
+            'dock_reverse_dist': 0.50,  # metros de retroceso final
             'dock_speed': 0.10,         # m/s
-            # 'battery_topic': '/battery_state',
-            # 'battery_threshold': 20.0,
+            'battery_topic': '/battery_state',
+            'battery_threshold': 10.85,  # voltaje (V) del pack
         }]
     )
 
