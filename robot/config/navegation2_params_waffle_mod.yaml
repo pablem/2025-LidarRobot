@@ -262,7 +262,7 @@ local_costmap:
       # ── RADIO DEL ROBOT ───────────────────────────────────────────────────
       # Modelo CIRCULAR (no footprint): base_link está casi atrás (footprint iba de x=-0.06 a 0.28),
       # el centro de rotación está corrido → al girar en el lugar el frente barre un arco grande
-      robot_radius: 0.34
+      robot_radius: 0.33
       # footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # rectángulo real
       
       # ── CAPAS DEL COSTMAP ─────────────────────────────────────────────────
@@ -275,7 +275,7 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.38 # DEBE ser >= robot_radius (0.38)
+        inflation_radius: 0.30 # DEBE ser >= robot_radius (0.34)
         cost_scaling_factor: 1.2  # gradiente de centrado (solo actúa si inflation_radius > robot_radius)
 
       obstacle_layer:
@@ -291,9 +291,9 @@ local_costmap:
           observation_persistence: 6.0    # subido de 1.5: el XV-11 (1°/rayo) detecta obstáculos
                                           # chicos (~5 cm) de forma intermitente; retenerlos para evitar que
                                           # el raytracing los borre entre escaneos.
-          raytrace_max_range: 2.0   # no borra celdas más allá de 2m
+          raytrace_max_range: 2.1   # no borra celdas más allá de 2m
           raytrace_min_range: 0.17  # XV-11 no confiable bajo 15cm; lecturas menores no borran
-          obstacle_max_range: 3.0   # no marca obstáculos más allá de 3m
+          obstacle_max_range: 2.0   # no marca obstáculos más allá de 2m (= radio del costmap local 4x4)
           obstacle_min_range: 0.17  # lecturas bajo 15cm son ruido o el propio robot
 
       # voxel_layer:
@@ -340,7 +340,7 @@ global_costmap:
 
       # ── RADIO DEL ROBOT (global) ──────────────────────────────────────────
       # Modelo CIRCULAR
-      robot_radius: 0.34
+      robot_radius: 0.33
       # footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # rectángulo real
 
       resolution: 0.03  # 3cm/celda; antes 0.05 — global costmap
