@@ -165,7 +165,7 @@ class ReturnToBase(Node):
             return
 
         self._send_home_goal(self.dock_x_offset, 0.0, initial=True)
-        self._update_timer = self.create_timer(5.0, self._update_home_goal)
+        self._update_timer = self.create_timer(3.0, self._update_home_goal)
 
     def _send_home_goal(self, x, y, initial=False):
         goal = NavigateToPose.Goal()
@@ -178,10 +178,10 @@ class ReturnToBase(Node):
         yaw = self.dock_yaw_offset
         goal.pose.pose.orientation.z = math.sin(yaw / 2.0)
         goal.pose.pose.orientation.w = math.cos(yaw / 2.0)
-        tag = 'Goal inicial' if initial else 'Re-enviando goal'
-        self.get_logger().info(
-            f'[return_to_base] {tag}: map({x:.3f}, {y:.3f}, yaw={yaw:.3f} rad)'
-        )
+        # tag = 'Goal inicial' if initial else 'Re-enviando goal'
+        # self.get_logger().info(
+        #     f'[return_to_base] {tag}: map({x:.3f}, {y:.3f}, yaw={yaw:.3f} rad)'
+        # )
         future = self._nav_client.send_goal_async(goal)
         future.add_done_callback(self._on_goal_accepted)
 
@@ -193,7 +193,7 @@ class ReturnToBase(Node):
         if not goal_handle.accepted:
             self.get_logger().error('[return_to_base] Goal rechazado por Nav2.')
             return
-        self.get_logger().info('[return_to_base] Goal aceptado. Navegando a base...')
+        self.get_logger().info('[return_to_base] Navegando a base...')
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self._on_goal_reached)
 
@@ -206,17 +206,15 @@ class ReturnToBase(Node):
             self.get_logger().info('[return_to_base] ¡Punto de dock alcanzado! Iniciando maniobra de retroceso...')
             self._do_dock_reverse()
         elif result.status == GoalStatus.STATUS_CANCELED:
-            pass  # preemptado por _update_home_goal — el nuevo goal manejará el resultado
-        else:
-            self.get_logger().warn(
-                f'[return_to_base] Navegación terminó con status {result.status}.'
-            )
+            pass  #  _update_home_goal — el nuevo goal manejará el resultado
+        # else:
+        #     self.get_logger().warn(
+        #         f'[return_to_base] Navegación terminó con status {result.status}.'
+        #     )
 
     # ── 8. Maniobra de retroceso al dock (open-loop por /cmd_vel) ─────────
     # A diferencia de la acción Nav2 BackUp, esto NO chequea colisiones contra
-    # el costmap local: publica Twist crudo en cmd_vel (vía twist_mux) para que
-    # el robot retroceda contra la pared y se alinee. La distancia se calibra
-    # empíricamente con el parámetro dock_reverse_dist.
+    # el costmap local.
     def _do_dock_reverse(self):
         if self.dock_reverse_dist <= 0.0:
             self._save_map()

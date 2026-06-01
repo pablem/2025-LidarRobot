@@ -44,16 +44,16 @@ def generate_launch_description():
         name='return_to_base',
         output='screen',
         parameters=[{
-            'exploration_time': 360.0,
-            'idle_timeout': 40.0,  # segundos sin nuevos objetivos antes de volver
+            'exploration_time': 540.0,  
+            'idle_timeout': 60.0,  
             'map_dir': '/home/pablo',
             'map_base_name': 'explore',
             'overwrite_map': True,
             # Maniobra de docking: navega a (dock_x_offset, 0) y retrocede al dock
             'dock_x_offset': 0.40,      # metros delante del dock
-            'dock_reverse_dist': 0.50,  # metros de retroceso final
+            'dock_reverse_dist': 0.56,  # metros de retroceso final
             'dock_speed': 0.10,         # m/s
-            'battery_topic': '/battery_state',
+            'battery_topic': '', #'''/battery_state',
             'battery_threshold': 10.85,  # voltaje (V) del pack
         }]
     )

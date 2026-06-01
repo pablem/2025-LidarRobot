@@ -42,7 +42,10 @@ slam_toolbox:
     use_scan_matching: true
     use_scan_barycenter: true
     minimum_travel_distance: 0.15  # desde 0.1; reduce frecuencia de correcciones
-    minimum_travel_heading: 0.3   # desde 0.1 (≈5.7°→17°); ~5 correcciones por giro de 90° en vez de 16
+    minimum_travel_heading: 0.2   # desde 0.3 (≈17°→11.5°); ~8 correcciones por giro de 90° en vez de 5.
+                                  # Con loop_closing off, más correcciones angulares reducen el drift de
+                                  # rumbo acumulado → pose más fresca al volver al dock. Si reaparece el
+                                  # wobble del mapa en giros, revertir a 0.3.
     scan_buffer_size: 10
     scan_buffer_maximum_scan_distance: 10.0
     link_match_minimum_response_fine: 0.1  
