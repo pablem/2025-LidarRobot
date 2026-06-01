@@ -87,10 +87,9 @@ bt_navigator:
   ros__parameters:
     use_sim_time: False
     global_frame: map
-    # URDF usa base_link como frame principal?
     robot_base_frame: base_link
     odom_topic: /odom
-    # Humble: el nombre correcto lleva "to_pose"
+    # en Humble: el nombre correcto lleva "to_pose"
     default_bt_xml_filename: "navigate_to_pose_w_replanning_and_recovery.xml"
     bt_loop_duration: 10
     default_server_timeout: 20

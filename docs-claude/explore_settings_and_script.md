@@ -7,12 +7,11 @@ Cambios realizados respecto a la configuración original de Nav2 + explore_lite.
 | Problema | Causa raíz | Solución |
 |---|---|---|
 | Robot chocaba con obstáculos | `BaseObstacle.scale` demasiado bajo; costmap global lento | Subir scale, aumentar `update_frequency` |
-| Robot chocaba aunque el costmap lo permitía | Footprint subestimado | +1cm por lado al polígono |
-| Obstáculos delgados (patas de silla) no persistían | Raytrace borraba celdas entre scans | `raytrace_min_range: 0.15`, `raytrace_max_range: 2.0` |
-| `trans_stopped_velocity` mayor que `max_vel_x` | Error de configuración | RotateToGoal siempre activo → movimiento errático |
-| "No frontiers found" prematuro | Inflation bloqueaba acceso a frontiers | Inflation global < local; `planner tolerance: 0.75` |
-| Robot exploraba zonas donde no cabe | `min_frontier_size` demasiado bajo | Subir a 1.0m |
-| Robot prefería fronteras cercanas chicas | `potential_scale` dominaba sobre `gain_scale` | Invertir proporción |
+| Robot rozaba al girar en el lugar | Footprint poligonal no modela el barrido del frente (centro de rotación corrido) | Modelo circular `robot_radius: 0.33` |
+| Obstáculos delgados (patas de silla) parpadeaban | Raytrace borraba celdas entre scans intermitentes del XV-11 | `observation_persistence` (6s local / 15s global), `raytrace_min_range: 0.17` |
+| "No frontiers found" prematuro | Inflation bloqueaba acceso a frontiers | Inflation global > local pero ≥ robot_radius; `planner tolerance: 0.75` |
+| Robot exploraba zonas donde no cabe | `min_frontier_size` demasiado bajo | Subir a 0.75m |
+| Apuntaba a fronteras grandes lejanas cruzando zonas sin mapear | `gain_scale` dominaba sobre `potential_scale` | Volver a `potential > gain` (exploración incremental) |
 | Robot se quedaba quieto al terminar exploración | Sin detección de inactividad en `return_to_base` | Suscripción a `/navigate_to_pose/_action/status` |
 | Robot chocaba en esquinas al girar | Correcciones angulares bruscas de SLAM + `transform_tolerance` insuficiente con delay negativo de TF | `angle_variance_penalty` bajado, `transform_tolerance: 0.5` |
 
@@ -20,48 +19,36 @@ Cambios realizados respecto a la configuración original de Nav2 + explore_lite.
 
 ## `navegation2_params_waffle_mod.yaml`
 
-### Footprint (local y global costmap)
+### Modelo del robot: footprint → `robot_radius` (local y global costmap)
+
+Se reemplazó el footprint poligonal por un **modelo circular** (`robot_radius`).
+Motivo: `base_link` está casi en la parte de atrás del robot (el polígono real iba
+de `x=-0.06` a `x=0.28`), así que el centro de rotación está corrido hacia atrás y
+al girar en el lugar el frente barre un arco grande. El polígono no representaba
+ese barrido; el círculo centrado en `base_link` sí cubre el peor caso de rotación.
 
 ```yaml
-# Polígono en base_link: atrás, izquierda, derecha, adelante
-# Se agregó 1cm por lado respecto a medición original porque el robot chocaba
-# aun cuando el costmap indicaba que el paso era libre.
-footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"
+robot_radius: 0.33
+# footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # rectángulo real, descartado
 ```
+
+> El modelo circular es más conservador (infla en todas las direcciones) pero
+> elimina los roces al girar que el footprint poligonal no anticipaba.
 
 ### Velocidades y aceleraciones (DWB controller)
 
 ```yaml
-min_vel_x: -0.05      # negativo habilita marcha atrás lenta; 20% del rango → poco muestreado
+min_vel_x: 0.0        # forward-only en crucero: DWB no muestrea reversa. El escape de
+                      # acuñamientos lo hace el recovery BackUp del BT (consciente de colisiones).
+                      # No rehabilitar reversa (-0.10): DWB la elegía para tramos largos ("reversa de crucero").
 max_vel_x: 0.18
-max_vel_theta: 0.6
+max_vel_theta: 0.4    # bajado de 0.6 → error de giro pasa de ~10° a ~7°
 max_speed_xy: 0.18
 acc_lim_x: 1.8        # tiempo a max_vel_x: 0.18/1.8 = 0.1s
-acc_lim_theta: 2.2    # tiempo a max_vel_theta: 0.6/2.2 = 0.27s
-decel_lim_x: -1.8
-decel_lim_theta: -2.2
-
-# CRÍTICO: debe ser < max_vel_x. Si es mayor, RotateToGoal considera al robot
-# siempre "detenido" y activa modo rotación pura en mitad de la trayectoria.
-trans_stopped_velocity: 0.05
+acc_lim_theta: 1.5    # bajado de 2.2 junto con max_vel_theta
 ```
 
-### Recovery server (velocidades de spin alineadas con el controlador)
-
-```yaml
-max_rotational_vel: 0.7   # igual a max_vel_theta; evita tirón brusco al entrar en recovery
-min_rotational_vel: 0.3
-rotational_acc_lim: 2.0   # igual a acc_lim_theta
-```
-
-### Progress checker
-
-```yaml
-required_movement_radius: 0.3   # antes 0.5m → muy exigente en espacios estrechos
-movement_time_allowance: 12.0   # antes 10s
-```
-
-### Críticos DWB
+### DWB
 
 ```yaml
 BaseObstacle.scale: 0.5   # antes 0.2 → demasiado bajo, seguía ruta aunque hubiera obstáculos
@@ -72,20 +59,55 @@ PathDist.scale: 24.0      # ídem
 ### Costmap local — obstacle_layer
 
 ```yaml
-raytrace_max_range: 2.0   # rayos lejanos no borran celdas; reduce falso borrado de patas de silla
-raytrace_min_range: 0.15  # XV-11 no confiable bajo 15cm
-obstacle_max_range: 2.0
-obstacle_min_range: 0.15
+observation_persistence: 6.0   # local; subido de 1.5. El XV-11 (1°/rayo) ve obstáculos
+                               # chicos (~5cm) de forma intermitente; retenerlos evita que el
+                               # raytracing los borre entre escaneos.
+raytrace_max_range: 2.1   # rayos lejanos no borran celdas; reduce falso borrado de patas de silla
+raytrace_min_range: 0.17  # XV-11 no confiable bajo ~15cm; lecturas menores no borran
+obstacle_max_range: 2.0   # = radio del costmap local 4×4
+obstacle_min_range: 0.17  # bajo ~15cm es ruido o el propio robot
 ```
 
-### Inflation (local y global)
+#### Tiempo de retención de obstáculos — NO interactúa con objetos en movimiento
+
+`observation_persistence` mantiene una celda marcada como ocupada durante N
+segundos aunque el láser ya no la vea, en vez de borrarla con el siguiente raytrace.
+Es la palanca preferida en este entorno porque el XV-11 detecta obstáculos delgados
+de forma intermitente y, sin persistencia, parpadeaban dentro/fuera del costmap.
+
+**Implicancia de diseño**: el robot asume un entorno *estático*. Si un objeto se
+mueve, su rastro persiste 6 s (local) / 15 s (global) como obstáculo fantasma antes
+de limpiarse. Es un trade-off aceptado: este robot **no está pensado para esquivar
+gente u objetos móviles en tiempo real**; prioriza no chocar contra obstáculos finos
+fijos (patas de silla, mesas).
+
+### Inflation (local y global) — relación con `robot_radius`
 
 ```yaml
+# local_costmap
 inflation_layer:
   inflation_radius: 0.30
-  cost_scaling_factor: 1.2   # factor bajo = gradiente extendido; planner prefiere el centro del pasillo
-                              # valores altos (>2) dan gradiente abrupto: el robot puede raspar esquinas
+  cost_scaling_factor: 1.2
+
+# global_costmap
+inflation_layer:
+  inflation_radius: 0.40   # > local; deja goals/frontiers menos pegados a obstáculos
+  cost_scaling_factor: 1.2 # factor bajo = gradiente extendido; el planner prefiere el centro del pasillo.
+                           # valores altos (>2) dan gradiente abrupto: el robot puede raspar esquinas.
 ```
+
+**Relación `inflation_radius` / `robot_radius` (= 0.33 con modelo circular):**
+
+- El gradiente de inflación útil aparece entre el radio del robot y `inflation_radius`.
+  Si `inflation_radius ≤ robot_radius`, no hay zona de gradiente: las celdas pasan de
+  letales a libres sin transición y `cost_scaling_factor` no tiene efecto.
+- Regla práctica: **`inflation_radius` debería ser ≥ `robot_radius`** para que exista
+  ese "espectro" de costes.
+- El **local** está en `0.30`, ligeramente por debajo de `robot_radius` (0.33).
+Reducirlo prioriza pasar por huecos
+  estrechos a costa de menos margen de centrado;
+- Mantener siempre **global > local**: el plan global traza rutas con más holgura y el
+  local hace el seguimiento fino.
 
 ### transform_tolerance (local y global costmap)
 
@@ -127,42 +149,20 @@ angle_variance_penalty: 0.4     # antes 1.0; el más importante para evitar salt
 
 ```yaml
 return_to_init: false    # explore_lite usa frame map; return_to_base.py maneja el retorno a odom(0,0,0)
+costmap_topic: map       # mapa crudo de slam_toolbox (no el costmap inflado de Nav2)
+visualize: true          # publica fronteras en /explore/frontiers para RViz
 
-planner_frequency: 0.33  # antes 0.1 Hz → muy lento para re-evaluar tras blacklistear un frontier
+planner_frequency: 0.10  # Hz — 10s entre evaluaciones; da tiempo a que el costmap se actualice
+progress_timeout: 90.0   # s sin avance → blacklist del goal
 
 # Relación potential_scale / gain_scale determina si prefiere fronteras cercanas o grandes:
-# costo = potential_scale × distancia − gain_scale × tamaño
-# Con potential_scale > gain_scale → prefiere cercanas (comportamiento original, problemático)
-# Con gain_scale > potential_scale → prefiere grandes y lejanas
-potential_scale: 1.0     # antes 3.0
-gain_scale: 3.0          # antes 1.0
+# Con potential_scale > gain_scale → prefiere cercanas; con gain_scale > potential_scale → grandes/lejanas.
+# Se volvió a potential > gain a propósito: con gain dominante el robot apuntaba a
+# fronteras grandes lejanas a través de obstáculos aún no mapeados. Prefiriendo
+# cercanas explora de forma incremental y mapea el camino antes de avanzar.
+potential_scale: 3.5     # penaliza distancia (prefiere fronteras cercanas)
+gain_scale: 2.0          # premia fronteras grandes → evita perseguir huecos diminutos
+orientation_scale: 0.0   # no implementado, dejar en 0
 
-min_frontier_size: 1.0   # antes 0.5m; con robot de 0.49m de ancho, frontiers <1m llevan a zonas inaccesibles
+min_frontier_size: 0.75  # filtra aperturas chicas donde el robot no cabe (r=0.33)
 ```
-
----
-
-## `return_to_base.py` — detección de inactividad
-
-El script original solo tenía un timer fijo. Problema: el robot terminaba de explorar y se quedaba quieto hasta que el timer disparaba.
-
-Se agregó detección de fin de exploración por inactividad de Nav2:
-
-```python
-# Suscripción al topic de estado de la action server de Nav2
-'/navigate_to_pose/_action/status'  →  GoalStatusArray
-
-# Lógica:
-# - Si hay goals STATUS_ACCEPTED o STATUS_EXECUTING → actualizar _last_active_time
-# - Cada 2s: si han pasado min_exploration_time Y Nav2 lleva idle_timeout sin goals activos
-#   → disparar retorno (misma lógica que el timer)
-```
-
-Parámetros nuevos expuestos en el launch file:
-
-```python
-'min_exploration_time': 60.0,   # no activar idle antes de este tiempo (evita falso positivo al arranque)
-'idle_timeout': 8.0,            # segundos sin goals Nav2 → exploración terminada
-```
-
-Los tres triggers (timer, idle, batería) compiten; el primero en disparar setea `_returning = True` y los demás no hacen nada.
