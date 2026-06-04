@@ -49,6 +49,8 @@ MPU9250Driver::MPU9250Driver() : Node("mpu9250publisher")
 
 void MPU9250Driver::handleInput()
 {
+  const std::string frame_id = this->get_parameter("frame_id").as_string();
+
   auto imu_msg = sensor_msgs::msg::Imu();
   auto mag_msg = sensor_msgs::msg::MagneticField();
 
@@ -104,10 +106,10 @@ void MPU9250Driver::handleInput()
   auto now = this->get_clock()->now();
 
   imu_msg.header.stamp = now;
-  imu_msg.header.frame_id = "imu_link";
+  imu_msg.header.frame_id = frame_id; //"imu_link";
 
   mag_msg.header.stamp = now;
-  mag_msg.header.frame_id = "imu_link";
+  mag_msg.header.frame_id = frame_id; //"imu_link";
 
   // Publish messages
   imu_pub_->publish(imu_msg);
@@ -130,6 +132,7 @@ void MPU9250Driver::declareParameters()
   this->declare_parameter<double>("mag_y_offset", 0.0);
   this->declare_parameter<double>("mag_z_offset", 0.0);
   this->declare_parameter<int>("frequency", 100);
+  this->declare_parameter<std::string>("frame_id", "imu_link");
 }
 
 // void MPU9250Driver::calculateOrientation(sensor_msgs::msg::Imu& imu_message)

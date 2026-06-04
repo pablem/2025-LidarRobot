@@ -90,8 +90,8 @@ ekf_filter_node:
         
         odom0_config: [ false, false, false,   # x, y, z (posición, no fusionar absolutas)
                         false, false, false,   # roll, pitch, yaw
-                        true,  false,  false,   # vx, vy, vz  ← velocidades del encoder
-                        false, false, true,    # vroll, vpitch, vyaw
+                        true,  false,  false,   # vx, vy, vz  ← velocidad lineal del encoder
+                        false, false, false,   # vroll, vpitch, vyaw (yaw-rate lo aporta el giróscopo)
                         false, false, false]   # ax, ay, az
 
 # If you have high-frequency data or are running with a low frequency parameter value, then you may want to increase
@@ -132,16 +132,16 @@ ekf_filter_node:
 
         imu0: /imu/data
         imu0_config: [  false, false, false,     # x, y, z
-                        true,  true,  true,      # roll, pitch, yaw
+                        false, false, false,     # roll, pitch, yaw (NO fusionar orientación absoluta)
                         false, false, false,     # vx, vy, vz
-                        false, false, false,     # vroll, vpitch, vyaw: velocidad angular Z del giróscopo
-                        false, false, false]     # ax (aceleración lineal X): arranques/frenadas
+                        false, false, true,      # vroll, vpitch, vyaw ← yaw-rate del giróscopo
+                        false, false, false]     # ax, ay, az
         imu0_differential: false
         imu0_relative: false
         imu0_nodelay: false
         imu0_queue_size: 5
         imu0_pose_rejection_threshold: 0.8                 # Note the difference in parameter names
-        imu0_twist_rejection_threshold: 0.8                #
+        imu0_twist_rejection_threshold: 3.0                # subido de 0.8: el gate rechazaba el yaw-rate del giro (Mahalanobis ~2.7)
         imu0_linear_acceleration_rejection_threshold: 0.8  #
 
 # [ADVANCED] Some IMUs automatically remove acceleration due to gravity, and others don't. If yours doesn't, please set

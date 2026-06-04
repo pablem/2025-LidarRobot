@@ -165,7 +165,7 @@ def generate_launch_description():
         name='imu_filter_madgwick',
         output='screen',
         parameters=[{
-            'use_mag': True,
+            'use_mag': False,       # magnetómetro descartado: heading angular lo da el giróscopo vía EKF
             'publish_tf': False,
             'world_frame': 'enu',   # East-North-Up frame, for ground robots
         }],
