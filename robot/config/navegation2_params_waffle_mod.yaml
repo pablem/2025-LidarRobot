@@ -225,12 +225,12 @@ controller_server:
       Oscillation.scale: 6.0  # 5.0
       Oscillation.oscillation_reset_dist: 0.05
       Oscillation.oscillation_reset_angle: 0.2  
-      BaseObstacle.scale: 1.0 #0.5 # 0.2 era demasiado bajo vs PathAlign 32.0 → seguía ruta aunque hubiera obstáculos
-      PathAlign.scale: 24.0  # reducido de 32.0; da más margen a BaseObstacle para desviar de ruta
+      BaseObstacle.scale: 0.5 # bajado de 1.0
+      PathAlign.scale: 32.0  # restaurado de 24.0
       PathAlign.forward_point_distance: 0.1
       GoalAlign.scale: 24.0
       GoalAlign.forward_point_distance: 0.1
-      PathDist.scale: 24.0   # reducido de 32.0; ídem
+      PathDist.scale: 32.0   # restaurado de 24.0
       GoalDist.scale: 24.0
       RotateToGoal.scale: 32.0
       RotateToGoal.slowing_factor: 5.0

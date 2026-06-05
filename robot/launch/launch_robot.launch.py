@@ -185,7 +185,8 @@ def generate_launch_description():
         parameters=[
             os.path.join(get_package_share_directory(package_name), 'config', 'ekf.yaml'),
             {'use_sim_time': False}
-        ]
+        ],
+        remappings=[('odometry/filtered', '/odom')]  # Nav2 (bt_navigator/controller_server)
     )
 
     delayed_ekf = TimerAction(

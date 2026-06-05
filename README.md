@@ -31,7 +31,7 @@ Sensors
   LiDAR: Neato XV-11  ──► /scan ──► SLAM Toolbox ──► Nav2
   IMU:   MPU-9250     ──► /imu/data_raw
                       ──► Madgwick filter ──► /imu/data
-                      ──► robot_localization EKF ──► /odometry/filtered
+                      ──► robot_localization EKF ──► /odom ──► Nav2
 ```
 
 **Frame tree:**
@@ -272,8 +272,8 @@ ls -l /dev/serial/by-id/
 ros2 run tf2_tools view_frames
 
 # Monitor odometry
-ros2 topic echo /diff_cont/odom
-ros2 topic echo /odometry/filtered
+ros2 topic echo /diff_cont/odom   # encoder crudo (entrada del EKF)
+ros2 topic echo /odom             # filtrado del EKF (remapeado de odometry/filtered)
 
 # Check active controllers
 ros2 control list_controllers

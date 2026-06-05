@@ -44,7 +44,7 @@ def generate_launch_description():
         name='return_to_base',
         output='screen',
         parameters=[{
-            'exploration_time': 60.0, #540.0,  
+            'exploration_time': 120.0, #540.0,  
             'idle_timeout': 60.0,  
             'map_dir': '/home/pablo',
             'map_base_name': 'explore',
