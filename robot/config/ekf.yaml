@@ -128,9 +128,9 @@ ekf_filter_node:
         odom0_pose_rejection_threshold: 5.0
         odom0_twist_rejection_threshold: 5.0
 
-        # Fuente 2: IMU filtrada (Madgwick)
-
-        imu0: /imu/data
+        # Fuente 2: IMU cruda del driver (sin Madgwick).
+        # Solo se fusiona vyaw (angular_velocity.z) del driver
+        imu0: /imu/data_raw
         imu0_config: [  false, false, false,     # x, y, z
                         false, false, false,     # roll, pitch, yaw (mag deshabilitado: mucha interferencia)
                         false, false, false,     # vx, vy, vz

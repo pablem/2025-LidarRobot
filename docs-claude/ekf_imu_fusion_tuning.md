@@ -110,6 +110,18 @@ deriva a ~45°. Causa: (1) interferencia de motores corrompe el campo al andar;
 
 ### Para retomar el mag
 Habría que **relocalizar el IMU** lejos de motores/cableado (la interferencia es física).
-Config a revertir: `use_mag: True` en [launch_robot.launch.py](../robot/launch/launch_robot.launch.py),
-`imu0_config` yaw=`true` y descomentar `imu0_pose_rejection_threshold` en
-[ekf.yaml](../robot/config/ekf.yaml). El remap y la calibración ya están listos.
+Config a revertir: **re-agregar el nodo `imu_filter_madgwick`** en
+[launch_robot.launch.py](../robot/launch/launch_robot.launch.py) con `use_mag: True`
+(se eliminó, ver abajo), apuntar `imu0` de vuelta a `/imu/data` en
+[ekf.yaml](../robot/config/ekf.yaml), poner `imu0_config` yaw=`true` y descomentar
+`imu0_pose_rejection_threshold`. El remap y la calibración ya están listos.
+
+## Madgwick eliminado de la cadena (2026-06-05)
+
+Con el mag deshabilitado, el EKF fusiona **solo `vyaw`** (`angular_velocity.z`) de la IMU.
+`imu_filter_madgwick` copiaba `angular_velocity`/`linear_acceleration` sin tocarlas y solo
+agregaba un cuaternión de orientación que el EKF **no consume** (yaw=`false`, `two_d_mode`).
+Por eso no aportaba nada al estado fusionado. Se **eliminó el nodo** del launch y `imu0` ahora
+apunta a `/imu/data_raw` (que ya trae el `angular_velocity_covariance` del driver). Odometría
+idéntica, un nodo menos y sin el `TimerAction` de 2 s. Reactivar Madgwick solo tiene sentido
+si se retoma el mag (ver arriba) o se quiere fusionar orientación absoluta.

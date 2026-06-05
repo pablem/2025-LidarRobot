@@ -8,7 +8,7 @@ class GyroIntegrator(Node):
         super().__init__('gyro_int')
         self.prev_time = None
         self.angle = 0.0
-        self.create_subscription(Imu, '/imu/data', self.cb, 10)
+        self.create_subscription(Imu, '/imu/data_raw', self.cb, 10)
 
     def cb(self, msg):
         t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9

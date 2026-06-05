@@ -159,22 +159,25 @@ def generate_launch_description():
         ]
     )
 
-    madgwick = Node(
-        package='imu_filter_madgwick',
-        executable='imu_filter_madgwick_node',
-        name='imu_filter_madgwick',
-        output='screen',
-        parameters=[{
-            'use_mag': False,       # mag deshabilitado: navegación imposible. Solo usar giroscopio para mejorar yaw
-            'publish_tf': False,
-            'world_frame': 'enu',   # East-North-Up frame, for ground robots
-        }],
-    )
+    # madgwick = Node(
+    #     package='imu_filter_madgwick',
+    #     executable='imu_filter_madgwick_node',
+    #     name='imu_filter_madgwick',
+    #     output='screen',
+    #     parameters=[{
+    #         'use_mag': False,       # mag deshabilitado: navegación imposible. Solo usar giroscopio para mejorar yaw
+    #         'publish_tf': False,
+    #         'world_frame': 'enu',   # East-North-Up frame, for ground robots
+    #     }],
+    # )
 
-    delayed_madgwick = TimerAction(
-        period=2.0,
-        actions=[madgwick]
-    )
+    # delayed_madgwick = TimerAction(
+    #     period=2.0,
+    #     actions=[madgwick]
+    # )
+
+    # Madgwick eliminado: el EKF solo fusiona vyaw (angular_velocity.z), que el
+    # driver ya publica en /imu/data_raw. 
 
     ekf_node = Node(
         package='robot_localization',
@@ -206,6 +209,6 @@ def generate_launch_description():
         delayed_diff_drive_spawner,
         delayed_joint_broad_spawner,
         mpu9250_driver,
-        delayed_madgwick,
+        # delayed_madgwick,
         delayed_ekf,
     ])
