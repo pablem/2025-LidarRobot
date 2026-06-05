@@ -165,11 +165,10 @@ def generate_launch_description():
         name='imu_filter_madgwick',
         output='screen',
         parameters=[{
-            'use_mag': False,       # magnetómetro descartado: heading angular lo da el giróscopo vía EKF
+            'use_mag': False,       # mag deshabilitado: navegación imposible. Solo usar giroscopio para mejorar yaw
             'publish_tf': False,
             'world_frame': 'enu',   # East-North-Up frame, for ground robots
         }],
-        # remappings=[('/imu/data_raw', '/imu')]
     )
 
     delayed_madgwick = TimerAction(

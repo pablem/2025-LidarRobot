@@ -132,7 +132,7 @@ ekf_filter_node:
 
         imu0: /imu/data
         imu0_config: [  false, false, false,     # x, y, z
-                        false, false, false,     # roll, pitch, yaw (NO fusionar orientación absoluta)
+                        false, false, false,     # roll, pitch, yaw (mag deshabilitado: mucha interferencia)
                         false, false, false,     # vx, vy, vz
                         false, false, true,      # vroll, vpitch, vyaw ← yaw-rate del giróscopo
                         false, false, false]     # ax, ay, az
@@ -140,9 +140,8 @@ ekf_filter_node:
         imu0_relative: false
         imu0_nodelay: false
         imu0_queue_size: 5
-        # imu0_pose_rejection_threshold: 0.8                    # actualmente no se fusiona pose de la IMU (solo vyaw)
-        # imu0_twist_rejection_threshold: 3.0                   # QUITADO: "gate fijo"
-                                                                #   se aplica para un solo gyro sin magnetómetro 
+        # imu0_pose_rejection_threshold: 5.0                    # solo si se habilita yaw absoluto del mag
+        # imu0_twist_rejection_threshold: 3.0                   # QUITADO: el yaw-rate del giro no tiene outliers que filtrar
         # imu0_linear_acceleration_rejection_threshold: 0.8     # no se fusiona aceleración de la IMU
 
 # [ADVANCED] Some IMUs automatically remove acceleration due to gravity, and others don't. If yours doesn't, please set

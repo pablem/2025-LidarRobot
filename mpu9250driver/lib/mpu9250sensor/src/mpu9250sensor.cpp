@@ -308,9 +308,15 @@ void MPU9250Sensor::getMagneticField(double &mx, double &my, double &mz)
   // double my_uT = convertRawMagnetometerData(raw_y);
   // double mz_uT = convertRawMagnetometerData(raw_z);
 
-  mx = mx_T - mag_x_offset_;
-  my = my_T - mag_y_offset_;
-  mz = mz_T - mag_z_offset_;
+  // Remap de ejes AK8963 -> marco acel/giro (cuerpo). El magnetómetro AK8963
+  // tiene una orientación de ejes distinta a la del acel/giro de la MPU9250
+  // (datasheet InvenSense): X_body = Y_mag, Y_body = X_mag, Z_body = -Z_mag.
+  // Sin esto, Madgwick fusiona un mag inconsistente con el giróscopo y el yaw
+  // absoluto deriva/gira solo. El ajuste ASA (mag_adj_*) ya quedó aplicado sobre
+  // los ejes crudos arriba; aquí solo se reordena al marco del cuerpo.
+  mx =  my_T - mag_x_offset_;
+  my =  mx_T - mag_y_offset_;
+  mz = -mz_T - mag_z_offset_;
 
   initImuI2c();
 }

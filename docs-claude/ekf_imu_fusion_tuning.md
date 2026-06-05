@@ -81,3 +81,35 @@ medición necesaria para empezar a seguir el giro.
 **comentados**: solo aplican a variables que se fusionan, y de la IMU se fusiona únicamente `vyaw`
 (twist). No filtraban nada. Lo mismo aplica a `odom0_pose_rejection_threshold` (de odom0 solo se
 fusiona `vx`).
+
+## Magnetómetro: remapeado, calibrado y **deshabilitado**
+
+Se intentó sumar el **yaw absoluto** del magnetómetro para anclar la deriva del giro. Resultado:
+**deshabilitado** por interferencia de los motores indoors. El estado de heading sigue siendo
+**encoder `vx` + giro `vyaw` (2:1)**, sin orientación absoluta.
+
+### Qué se arregló en el camino (se conserva, inofensivo)
+- **Remap de ejes del magnetómetro** en [mpu9250sensor.cpp](../mpu9250driver/lib/mpu9250sensor/src/mpu9250sensor.cpp)
+  `getMagneticField`: el AK8963 tiene otra convención de ejes que el acel/giro
+  (datasheet InvenSense) → `X_body = Y_mag`, `Y_body = X_mag`, `Z_body = -Z_mag`.
+  Sin esto Madgwick fusiona un mag inconsistente y el yaw absoluto gira/deriva solo.
+- **Hard-iron recalibrado** en [mpu9250.yaml](../mpu9250driver/params/mpu9250.yaml)
+  (`mag_*_offset`), validado con [scripts/mag_cal_live.py](../scripts/mag_cal_live.py):
+  tras calibrar, `x`/`y` trazan un círculo centrado en 0 con amplitudes ~iguales
+  (soft-iron despreciable). `calibrate()` del driver **no** toca el mag, solo giro/acel.
+
+### Verificación del mag (sano en banco) vs. fusión (malo en marcha)
+Con [scripts/imu_abs_yaw_deg.py](../scripts/imu_abs_yaw_deg.py): quieto el yaw absoluto es
+**estable** (±0.3°/10 s), en giro es **monótono y con signo correcto** (CCW → aumenta), aunque
+lee ~8% más de rotación que el giro (soft-iron residual). Pero al **fusionarlo débil**
+(`imu0` yaw abs + `orientation_stddev: 0.1` + `imu0_pose_rejection_threshold: 5.0`,
+`use_mag: True`) el heading **empeoró**: mapa rotando en reposo, saltos de scan-match,
+deriva a ~45°. Causa: (1) interferencia de motores corrompe el campo al andar;
+(2) el yaw absoluto ancla al **este magnético** (ruidoso, con sobre-escala), no a
+"adelante = 0". Con la deriva del giro en ~0.4°/min, el mag aporta poco y arriesga mucho.
+
+### Para retomar el mag
+Habría que **relocalizar el IMU** lejos de motores/cableado (la interferencia es física).
+Config a revertir: `use_mag: True` en [launch_robot.launch.py](../robot/launch/launch_robot.launch.py),
+`imu0_config` yaw=`true` y descomentar `imu0_pose_rejection_threshold` en
+[ekf.yaml](../robot/config/ekf.yaml). El remap y la calibración ya están listos.
