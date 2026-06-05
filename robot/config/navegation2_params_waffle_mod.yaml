@@ -275,7 +275,7 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.29 # DEBE ser >= robot_radius (0.30); el gradiente de 3cm centra en la puerta
+        inflation_radius: 0.28 # DEBE ser >= robot_radius (0.30); el gradiente de 3cm centra en la puerta
         cost_scaling_factor: 1.2  # gradiente de centrado (solo actúa si inflation_radius > robot_radius)
 
       obstacle_layer:
@@ -394,7 +394,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 1.2  # gradiente extendido → NavFn prefiere rutas alejadas de esquinas
-        inflation_radius: 0.29 # Siempre debe ser MAYOR que el local
+        inflation_radius: 0.28 # Siempre debe ser MAYOR que el local
 
       always_send_full_costmap: True
 

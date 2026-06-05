@@ -10,8 +10,10 @@
     visualize: true                     # publica fronteras en /explore/frontiers para RViz
     planner_frequency: 0.10              # Hz — 10s entre evaluaciones; espera que actualice costmap
     progress_timeout: 110.0              # s — sin avance → blacklist del goal
-    potential_scale: 3.0                # subido de 3.0; penaliza más la distancia → prefiere fronteras cercanas y explora incremental (objetivos lejanos sobre obstáculos aún no mapeados)
+    potential_scale: 4.0                # subido de 3.0: penaliza más la distancia → prefiere fronteras cercanas y explora incremental.
+                                        # evita el flood de worldToMap failed (meta sobre el límite del costmap).
     orientation_scale: 0.0              # no implementado, dejar en 0
     gain_scale: 1.3                     # aumentado de 1.0; premia fronteras grandes; evita huecos pequeños
     transform_tolerance: 0.3            # s — timeout para lookups TF
-    min_frontier_size: 0.75              # aumentado de 0.75m; 1.3: filtra aperturas menores a 1m donde el robot no cabe
+    min_frontier_size: 0.9               # subido de 0.75: evita caer sobre el límite del mapa
+                                         # (causa de error: worldToMap failed)
