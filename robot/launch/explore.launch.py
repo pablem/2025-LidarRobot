@@ -2,7 +2,8 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.actions import IncludeLaunchDescription, TimerAction, DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
@@ -10,6 +11,9 @@ from launch_ros.actions import Node
 def generate_launch_description():
 
     pkg_share = get_package_share_directory('robot')
+
+    # true en simulación (ros2 launch ... use_sim_time:=true)
+    use_sim_time = LaunchConfiguration('use_sim_time')
 
     # ── Undock: avanza x cm en línea recta para salir de la terminal de carga ──
     undock = Node(
@@ -20,6 +24,7 @@ def generate_launch_description():
         parameters=[{
             'undock_dist': 0.40,   # metros
             'undock_speed': 0.10,  # m/s
+            'use_sim_time': use_sim_time,
         }]
     )
 
@@ -30,7 +35,7 @@ def generate_launch_description():
             'launch', 'explore.launch.py'
         )]),
         launch_arguments={
-            'use_sim_time': 'false',
+            'use_sim_time': use_sim_time,
         }.items()
     )
 
@@ -55,6 +60,7 @@ def generate_launch_description():
             'dock_speed': 0.10,         # m/s
             'battery_topic': '', #'''/battery_state',
             'battery_threshold': 10.85,  # voltaje (V) del pack
+            'use_sim_time': use_sim_time,
         }]
     )
 
@@ -62,6 +68,10 @@ def generate_launch_description():
     delayed_return_to_base = TimerAction(period=12.0, actions=[return_to_base])
 
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='false',
+            description='Use simulation (Gazebo) clock if true'),
         undock,
         delayed_explore,
         delayed_return_to_base,

@@ -2,7 +2,8 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.actions import IncludeLaunchDescription, TimerAction, DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 
@@ -10,6 +11,9 @@ def generate_launch_description():
 
     package_name = 'robot'
     pkg_share = get_package_share_directory(package_name)
+
+    # en simulación (ros2 launch ... use_sim_time:=true)
+    use_sim_time = LaunchConfiguration('use_sim_time')
 
     # ── SLAM Toolbox (online async, with .yaml params) ────────────────
     slam = IncludeLaunchDescription(
@@ -19,7 +23,7 @@ def generate_launch_description():
         )]),
         launch_arguments={
             'slam_params_file': os.path.join(pkg_share, 'config', 'mapper_params_online_async.yaml'),
-            'use_sim_time': 'false',
+            'use_sim_time': use_sim_time,
         }.items()
     )
 
@@ -31,8 +35,8 @@ def generate_launch_description():
         )]),
         launch_arguments={
             'params_file': os.path.join(pkg_share, 'config', 'navegation2_params_waffle_mod.yaml'),
-            'use_sim_time': 'false',
-            # 'use_respawn': 'true',   # relanza nodos caídos de Nav2 
+            'use_sim_time': use_sim_time,
+            # 'use_respawn': 'true',   # relanza nodos caídos de Nav2
         }.items()
     )
 
@@ -42,6 +46,10 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='false',
+            description='Use simulation (Gazebo) clock if true'),
         slam,
         delayed_nav2,
     ])

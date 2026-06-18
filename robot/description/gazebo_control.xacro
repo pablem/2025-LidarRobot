@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- sim_mode:=true 
+         Gazebo Fortress (Ignition Gazebo 6) + gz_ros2_control.
+         Carga el controller_manager DENTRO de Gazebo usando la misma config
+         de controllers que el robot real (diff_cont + joint_broad). -->
+    <gazebo>
+        <plugin filename="ign_ros2_control-system"
+                name="ign_ros2_control::IgnitionROS2ControlPlugin">
+            <parameters>$(find robot)/config/my_controllers.yaml</parameters>
+        </plugin>
+    </gazebo>
+
+</robot>

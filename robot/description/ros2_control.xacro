@@ -1,26 +1,35 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
+    <!-- sim_mode=true intercambia el plugin de hardware real por el de Gazebo.
+         Se reutilizan los mismos <joint> y la misma config de controllers. -->
+    <xacro:arg name="sim_mode" default="false"/>
+
     <ros2_control name="RealRobot" type="system">
         <hardware>
-            <plugin>diffdrive_arduino/DiffDriveArduinoHardware</plugin>            
-            <param name="left_wheel_name">left_wheel_joint</param>
-            <param name="right_wheel_name">right_wheel_joint</param>
-            <param name="loop_rate">100</param>
-            <param name="device">/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_10:20:BA:4D:92:80-if00</param>
-            <param name="baud_rate">57600</param>
-            <param name="timeout_ms">100</param>
-            <!-- <param name="enc_counts_per_rev_left">33572</param> -->
-            <!-- <param name="enc_counts_per_rev_right">32730</param> -->
-            <param name="enc_counts_per_rev_left">33667</param>
-            <param name="enc_counts_per_rev_right">41800</param>
+            <xacro:unless value="$(arg sim_mode)">
+                <plugin>diffdrive_arduino/DiffDriveArduinoHardware</plugin>
+                <param name="left_wheel_name">left_wheel_joint</param>
+                <param name="right_wheel_name">right_wheel_joint</param>
+                <param name="loop_rate">100</param>
+                <param name="device">/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_10:20:BA:4D:92:80-if00</param>
+                <param name="baud_rate">57600</param>
+                <param name="timeout_ms">100</param>
+                <!-- <param name="enc_counts_per_rev_left">33572</param> -->
+                <!-- <param name="enc_counts_per_rev_right">32730</param> -->
+                <param name="enc_counts_per_rev_left">33667</param>
+                <param name="enc_counts_per_rev_right">41800</param>
 
-            <!-- Sensor de batería (opcional, valores por defecto en el código) -->
-            <param name="battery_voltage_min">10.75</param>
-            <param name="battery_voltage_max">12.6</param>
-            <param name="battery_runtime_full_min">120.0</param>
-            <param name="battery_publish_period">60.0</param>
+                <!-- Sensor de batería (opcional, valores por defecto en el código) -->
+                <param name="battery_voltage_min">10.75</param>
+                <param name="battery_voltage_max">12.6</param>
+                <param name="battery_runtime_full_min">120.0</param>
+                <param name="battery_publish_period">60.0</param>
+            </xacro:unless>
 
+            <xacro:if value="$(arg sim_mode)">
+                <plugin>ign_ros2_control/IgnitionSystem</plugin>
+            </xacro:if>
         </hardware>
         <joint name="left_wheel_joint">
             <command_interface name="velocity">
