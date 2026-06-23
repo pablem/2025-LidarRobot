@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-    <!-- sim_mode=true intercambia el plugin de hardware real por el de Gazebo.
+    <!-- sim_mode=true intercambia el plugin de hardware real por el de Gazebo
          Se reutilizan los mismos <joint> y la misma config de controllers. -->
     <xacro:arg name="sim_mode" default="false"/>
 
@@ -20,9 +20,9 @@
                 <param name="enc_counts_per_rev_left">33667</param>
                 <param name="enc_counts_per_rev_right">41800</param>
 
-                <!-- Sensor de batería (opcional, valores por defecto en el código) -->
-                <param name="battery_voltage_min">10.75</param>
-                <param name="battery_voltage_max">12.6</param>
+                <!-- Sensor de bateria -->
+                <param name="battery_voltage_min">12.0</param>
+                <param name="battery_voltage_max">16.8</param>
                 <param name="battery_runtime_full_min">120.0</param>
                 <param name="battery_publish_period">60.0</param>
             </xacro:unless>

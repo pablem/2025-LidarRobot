@@ -6,7 +6,7 @@
     <xacro:include filename="robot_core.xacro" />
     <xacro:include filename="ros2_control.xacro" />
 
-    <!-- Plugin gazebo_ros2_control: solo en simulación -->
+    <!-- Plugin gazebo_ros2_control solo en simulación -->
     <xacro:if value="$(arg sim_mode)">
         <xacro:include filename="gazebo_control.xacro" />
     </xacro:if>

@@ -57,10 +57,10 @@ struct Config
   int pid_d = 0;
   int pid_i = 0;
   int pid_o = 0;
-  double battery_voltage_min = 10.75;
-  double battery_voltage_max = 12.6;
-  double battery_runtime_full_min = 120.0;  // autonomía a plena carga (uso intensivo), en minutos
-  double battery_publish_period = 60.0;     // segundos entre lecturas/publicaciones de batería
+  double battery_voltage_min = 12.0;
+  double battery_voltage_max = 16.8;
+  double battery_runtime_full_min = 120.0;  // autonomia a plena carga (uso intensivo), en minutos
+  double battery_publish_period = 60.0;     // segundos entre lecturas/publicaciones de bateria
 };
 
 

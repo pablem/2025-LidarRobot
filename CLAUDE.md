@@ -97,20 +97,20 @@ ros2 topic echo /explore/status
 
 ## Sensor de batería
 
-El firmware del ESP32 responde al comando `b\r` con la tensión total del pack (3S LiPo, ~12.1 V medidos). El hardware interface la lee con `ArduinoComms::read_battery_voltage()` y publica desde un nodo interno (`diffdrive_battery`):
+El firmware del ESP32 responde al comando `b\r` con la tensión total del pack (4S LiPo). El hardware interface la lee con `ArduinoComms::read_battery_voltage()`, le aplica una **calibración lineal contra multímetro real** (`real = 1.33333 * raw + 0.20`, ajustada con los puntos raw→real `11.4→15.40` y `12.30→16.60`) y publica desde un nodo interno (`diffdrive_battery`):
 
 - `/battery_state` — `sensor_msgs/msg/BatteryState`. Solo se tiene la tensión total, así que `cell_voltage` queda vacío y `current`/`charge`/`capacity` van como NaN. `percentage` se calcula linealmente entre `battery_voltage_min` y `battery_voltage_max`. `power_supply_technology` = LIPO.
 - `/battery_time_remaining` — `std_msgs/msg/Float32`, minutos restantes estimados = `percentage * battery_runtime_full_min`.
 
-La lectura se hace en `read()` pero throttleada cada `battery_publish_period` segundos y **solo cuando ambos comandos de rueda son ~0** (`|wheel.cmd| < 1e-3`). Esto evita que el handler `b\r` del firmware ESP32 — que pierde ticks de encoder por deshabilitar interrupciones durante `analogRead()` — degrade la odometría durante el movimiento. Consecuencia: en exploraciones largas sin pausas, la batería puede no actualizarse por minutos; es esperado.
+La lectura se hace en `read()`, throttleada cada `battery_publish_period` segundos, **sin importar si el robot está en movimiento**. (Históricamente se sensaba solo con el robot quieto para evitar que el handler `b\r` — que perdía ticks de encoder al deshabilitar interrupciones durante `analogRead()` — degradara la odometría; ese guard fue removido.)
 
 ### Parámetros (`robot/description/ros2_control.xacro`, todos opcionales con defaults en el código)
 | Parámetro | Default | Descripción |
 |---|---|---|
-| `battery_voltage_min` | 10.75 V | Tensión a 0% de carga |
-| `battery_voltage_max` | 12.6 V | Tensión a 100% de carga |
+| `battery_voltage_min` | 12.0 V | Tensión (real, calibrada) a 0% de carga |
+| `battery_voltage_max` | 16.8 V | Tensión (real, calibrada) a 100% de carga |
 | `battery_runtime_full_min` | 120 min | Autonomía a plena carga (uso intensivo); ajustable |
-| `battery_publish_period` | 60 s | Período mínimo entre lecturas (solo se dispara con robot quieto) |
+| `battery_publish_period` | 60 s | Período entre lecturas/publicaciones |
 
 ### Depuración
 ```bash

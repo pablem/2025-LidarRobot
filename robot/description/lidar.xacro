@@ -23,8 +23,6 @@
         </xacro:inertial_cylinder>
     </link>
 
-    <!-- Gazebo Fortress:
-         topic gz "scan"; ros_gz_bridge lo trae a ROS como /scan. -->
     <gazebo reference="laser_frame">
         <sensor name="laser" type="gpu_lidar">
             <pose>0 0 0 0 0 0</pose>
