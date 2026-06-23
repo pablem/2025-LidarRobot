@@ -262,8 +262,8 @@ local_costmap:
       # Modelo CIRCULAR (no footprint): base_link está casi atrás (footprint iba de x=-0.06 a 0.28),
       # el centro de rotación está corrido → al girar en el lugar el frente barre un arco grande
       # 0.30
-      robot_radius: 0.28
-      # footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # rectángulo real
+      robot_radius: 0.27
+      # footprint: "[ [-0.056, -0.218], [-0.056, 0.218], [0.277, 0.218], [0.277, -0.218] ]"  # rectángulo real
 
       # ── CAPAS DEL COSTMAP ─────────────────────────────────────────────────
       # obstacle_layer: obstáculos 2D detectados por el lidar 
@@ -275,7 +275,7 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.28 # DEBE ser >= robot_radius (0.30); el gradiente de 3cm centra en la puerta
+        inflation_radius: 0.27 # DEBE ser >= robot_radius (0.30); el gradiente de 3cm centra en la puerta
         cost_scaling_factor: 1.2  # gradiente de centrado (solo actúa si inflation_radius > robot_radius)
 
       obstacle_layer:
@@ -339,8 +339,8 @@ global_costmap:
 
       # ── RADIO DEL ROBOT (global) ──────────────────────────────────────────
       # Modelo CIRCULAR — 
-      robot_radius: 0.28
-      # footprint: "[ [-0.06, -0.245], [-0.06, 0.24], [0.28, 0.24], [0.28, -0.245] ]"  # rectángulo real
+      robot_radius: 0.27
+      # footprint: "[ [-0.056, -0.218], [-0.056, 0.218], [0.277, 0.218], [0.277, -0.218] ]"  # rectangulo real
 
       resolution: 0.03  # 3cm/celda; antes 0.05 — global costmap
       track_unknown_space: true
@@ -394,7 +394,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 1.2  # gradiente extendido → NavFn prefiere rutas alejadas de esquinas
-        inflation_radius: 0.28 # Siempre debe ser MAYOR que el local
+        inflation_radius: 0.27 # Siempre debe ser MAYOR que el local
 
       always_send_full_costmap: True
 

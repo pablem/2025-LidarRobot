@@ -19,8 +19,8 @@ diff_cont:
 
     left_wheel_names: ['left_wheel_joint']
     right_wheel_names: ['right_wheel_joint']
-    wheel_separation: 0.408 # corrección sobre giro; anterior medido: 0.415
-    wheel_radius: 0.055
+    wheel_separation: 0.408 # corrección sobre giro; anterior medido: 0.407
+    wheel_radius: 0.056 # antes 0.055
 
     use_stamped_vel: false
 

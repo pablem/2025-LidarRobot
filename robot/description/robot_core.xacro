@@ -3,21 +3,7 @@
 
     <xacro:include filename="inertial_macros.xacro"/>
 
-    <material name="white">
-        <color rgba="0.5 0.5 0.5 1" />
-    </material>
-
-    <material name="orange">
-        <color rgba="1 0.3 0.1 1"/>
-    </material>
-
-    <material name="blue">
-        <color rgba="0.2 0.2 1 1"/>
-    </material>
-
-    <material name="black">
-        <color rgba="0 0 0 1"/>
-    </material>
+    <!-- Gazebo Fortress mapea (URDF-SDF) colores a diffuse/ambient -->
 
     <!-- BASE LINK -->
 
@@ -36,31 +22,31 @@
     <link name="base_footprint">
     </link>
 
-
-
     <!-- CHASSIS LINK -->
 
     <joint name="chassis1_joint" type="fixed">
         <parent link="base_link"/>
         <child link="chassis1"/>
-        <origin xyz="-0.05 0 -0.045"/>
+        <origin xyz="-0.047 0 -0.046"/>
     </joint>
 
     <link name="chassis1">
         <visual>
-            <origin xyz="0.05 0 0.1"/>
+            <origin xyz="0.047 0 0.1"/>
             <geometry>
-                <box size="0.1 0.38 0.2"/>
+                <box size="0.094 0.354 0.2"/>
             </geometry>
-            <material name="white"/>
+            <material name="gray">
+                <color rgba="0.35 0.35 0.35 1"/>
+            </material>
         </visual>
         <collision>
-            <origin xyz="0.05 0 0.1"/>
+            <origin xyz="0.047 0 0.1"/>
             <geometry>
-                <box size="0.1 0.38 0.2"/>
+                <box size="0.094 0.354 0.2"/>
             </geometry>
         </collision>
-        <xacro:inertial_box mass="0.6" x="0.1" y="0.38" z="0.2">
+        <xacro:inertial_box mass="0.6" x="0.094" y="0.354" z="0.2">
             <origin xyz="0.05 0 0.1" rpy="0 0 0"/>
         </xacro:inertial_box>
     </link>
@@ -68,25 +54,29 @@
     <joint name="chassis2_joint" type="fixed">
         <parent link="base_link"/>
         <child link="chassis2"/>
-        <origin xyz="0.05 0 0"/>
+        <origin xyz="0.065 0 0.024"/>
     </joint>
 
     <link name="chassis2">
         <visual>
-            <origin xyz="0.11 0 0.095"/>
+            <!-- <origin xyz="0.11 0 0.095"/> -->
+            <origin xyz="0.098 0 0.055"/>
             <geometry>
-                <box size="0.22 0.22 0.12"/>
+                <box size="0.196 0.156 0.11"/>
             </geometry>
-            <material name="white"/>
+            <material name="gray">
+                <color rgba="0.35 0.35 0.35 1"/>
+            </material>
         </visual>
         <collision>
-            <origin xyz="0.11 0 0.095"/>
+            <!-- <origin xyz="0.11 0 0.095"/> -->
+            <origin xyz="0.098 0 0.055"/>
             <geometry>
                 <box size="0.22 0.22 0.12"/>
             </geometry>
         </collision>
         <xacro:inertial_box mass="0.4" x="0.22" y="0.22" z="0.12">
-            <origin xyz="0.11 0 0.095" rpy="0 0 0"/>
+            <origin xyz="0.098 0 0.055" rpy="0 0 0"/>
         </xacro:inertial_box>
     </link>
     
@@ -102,16 +92,18 @@
     <link name="left_wheel">
         <visual>
             <geometry>
-                <cylinder radius="0.055" length="0.025"/>
+                <cylinder radius="0.056" length="0.027"/>
             </geometry>
-            <material name="blue"/>
+            <material name="blue">
+                <color rgba="0.2 0.2 1 1"/>
+            </material>
         </visual>
         <collision>
             <geometry>
-                <cylinder radius="0.055" length="0.025"/>
+                <cylinder radius="0.056" length="0.027"/>
             </geometry>
         </collision>
-        <xacro:inertial_cylinder mass="0.05" length="0.025" radius="0.055">
+        <xacro:inertial_cylinder mass="0.05" length="0.027" radius="0.056">
             <origin xyz="0 0 0" rpy="0 0 0"/>
         </xacro:inertial_cylinder>
     </link>
@@ -128,16 +120,18 @@
     <link name="right_wheel">
         <visual>
             <geometry>
-                <cylinder radius="0.055" length="0.025"/>
+                <cylinder radius="0.056" length="0.027"/>
             </geometry>
-            <material name="blue"/>
+            <material name="blue">
+                <color rgba="0.2 0.2 1 1"/>
+            </material>
         </visual>
         <collision>
             <geometry>
-                <cylinder radius="0.055" length="0.025"/>
+                <cylinder radius="0.056" length="0.027"/>
             </geometry>
         </collision>
-        <xacro:inertial_cylinder mass="0.05" length="0.025" radius="0.055">
+        <xacro:inertial_cylinder mass="0.05" length="0.027" radius="0.056">
             <origin xyz="0 0 0" rpy="0 0 0"/>
         </xacro:inertial_cylinder>
     </link>
@@ -147,22 +141,24 @@
     <joint name="caster_wheel_joint" type="fixed">
         <parent link="chassis2"/>
         <child link="caster_wheel"/>
-        <origin xyz="0.165 0 0"/>
+        <origin xyz="0.156 0 -0.024"/>
     </joint>
 
     <link name="caster_wheel">
         <visual>
             <geometry>
-                <sphere radius="0.055"/>
+                <sphere radius="0.056"/>
             </geometry>
-            <material name="white"/>
+            <material name="white">
+                <color rgba="0.5 0.5 0.5 1"/>
+            </material>
         </visual>
         <collision>
             <geometry>
-                <sphere radius="0.055"/>
+                <sphere radius="0.056"/>
             </geometry>
         </collision>
-        <xacro:inertial_sphere mass="0.02" radius="0.055">
+        <xacro:inertial_sphere mass="0.02" radius="0.056">
             <origin xyz="0 0 0" rpy="0 0 0"/>
         </xacro:inertial_sphere>
     </link>
