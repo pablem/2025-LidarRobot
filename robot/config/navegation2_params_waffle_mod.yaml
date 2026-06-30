@@ -188,12 +188,12 @@ controller_server:
       min_speed_theta: 0.0
 
       # ── ACELERACIONES ─────────────────────────────────────────────────────
-      acc_lim_x: 1.8        # m/s²;
+      acc_lim_x: 1.5        # m/s²;
       acc_lim_y: 0.0
-      acc_lim_theta: 1.5    # rad/s²; 
-      decel_lim_x: -1.8
+      acc_lim_theta: 1.3    # rad/s²; 
+      decel_lim_x: -1.5
       decel_lim_y: 0.0
-      decel_lim_theta: -1.5
+      decel_lim_theta: -1.3
 
       # ── MUESTREO DE TRAYECTORIAS DWA ─────────────────────────────────────
       # vx_samples: cuántas velocidades lineales simular
@@ -262,7 +262,7 @@ local_costmap:
       # Modelo CIRCULAR (no footprint): base_link está casi atrás (footprint iba de x=-0.06 a 0.28),
       # el centro de rotación está corrido → al girar en el lugar el frente barre un arco grande
       # 0.30
-      robot_radius: 0.27
+      robot_radius: 0.25
       # footprint: "[ [-0.056, -0.218], [-0.056, 0.218], [0.277, 0.218], [0.277, -0.218] ]"  # rectángulo real
 
       # ── CAPAS DEL COSTMAP ─────────────────────────────────────────────────
@@ -339,7 +339,7 @@ global_costmap:
 
       # ── RADIO DEL ROBOT (global) ──────────────────────────────────────────
       # Modelo CIRCULAR — 
-      robot_radius: 0.27
+      robot_radius: 0.25
       # footprint: "[ [-0.056, -0.218], [-0.056, 0.218], [0.277, 0.218], [0.277, -0.218] ]"  # rectangulo real
 
       resolution: 0.03  # 3cm/celda; antes 0.05 — global costmap
@@ -394,7 +394,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 1.2  # gradiente extendido → NavFn prefiere rutas alejadas de esquinas
-        inflation_radius: 0.27 # Siempre debe ser MAYOR que el local
+        inflation_radius: 0.28 # Siempre debe ser MAYOR que el local
 
       always_send_full_costmap: True
 
