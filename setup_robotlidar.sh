@@ -135,40 +135,27 @@ else
     log "rosdep ya estaba inicializado, se omite 'rosdep init'."
 fi
 rosdep update
-# 'source' de ROS para que rosdep resuelva contra Humble
+# 'source' de ROS para que rosdep resuelva contra Humble.
+# Los scripts de setup de ROS referencian variables sin inicializar
+# (p. ej. AMENT_TRACE_SETUP_FILES), así que desactivamos 'nounset'
+# temporalmente para que no aborte bajo 'set -u'.
+set +u
 # shellcheck disable=SC1091
 source "/opt/ros/${ROS_DISTRO}/setup.bash"
+set -u
 rosdep install --from-paths src --ignore-src -r -y
 log "Dependencias resueltas."
 
 # ----- 8. Compilación ------------------------------------------------------
 step "8/8 Compilando paquetes de simulación con colcon"
 cd "${WORKSPACE}"
+# Aseguramos el entorno de ROS (protegido contra 'set -u', ver paso 7).
+set +u
+# shellcheck disable=SC1091
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
+set -u
 colcon build --symlink-install \
     --packages-select robot explore_lite explore_lite_msgs
 append_bashrc_once "source ${WORKSPACE}/install/setup.bash"
 log "Compilación finalizada."
-
-# ----- Fin -----------------------------------------------------------------
-echo -e "\n${c_green}================================================================${c_reset}"
-log "Instalación completada correctamente."
-echo -e "${c_green}================================================================${c_reset}"
-cat <<EOF
-
-Para empezar a usar el entorno, abrí una terminal NUEVA
-(o ejecutá:  source ~/.bashrc)  y probá la teleoperación:
-
-  # Terminal 1 - lanzar robot simulado
-  ros2 launch robot launch_sim.launch.py
-
-  # Terminal 2 - abrir RViz con la config de odometría
-  rviz2 -d ${WORKSPACE}/src/robot/config/odom.rviz
-
-  # Terminal 3 - teleoperar con el teclado
-  ros2 run teleop_twist_keyboard teleop_twist_keyboard \\
-      --ros-args -r /cmd_vel:=/cmd_vel_key
-
-Consejo (WSL2): asigná 8 GB+ de RAM a WSL y cerrá otros programas de
-Windows antes de lanzar Gazebo. Para menos carga, usá Gazebo headless (-s).
-
 EOF
