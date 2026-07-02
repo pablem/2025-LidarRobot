@@ -198,6 +198,17 @@ sudo apt install \
 
 ## Build & Install
 
+### Automated setup (Ubuntu 22.04 / WSL2)
+
+`setup_robotlidar.sh` installs ROS 2 Humble, Gazebo Fortress and the full navigation stack (SLAM Toolbox, Nav2, IMU tools, robot_localization), clones the repo into `~/robotLidar`, resolves dependencies with `rosdep`, builds the simulation packages and configures `~/.bashrc`. Intended for running the **simulation** on a fresh Ubuntu/WSL2 machine.
+
+```bash
+git clone https://github.com/pablem/2025-LidarRobot.git
+bash 2025-LidarRobot/setup_robotlidar.sh
+```
+
+### Manual build
+
 ```bash
 # Create workspace
 mkdir robot_ws
@@ -250,14 +261,18 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
   --ros-args -r /cmd_vel:=/cmd_vel_teleop
 ```
 
-### Simulation (Gazebo) PENDING
+### Simulation (Gazebo Fortress)
 
 ```bash
-ros2 launch robot launch_sim.launch.py \
-  world:=./src/robot/worlds/obstacles.world
+# Terminal 1 – simulated robot
+ros2 launch robot launch_sim.launch.py
 
+# Terminal 2 – RViz with the odometry config
+rviz2 -d src/robot/config/odom.rviz
+
+# Terminal 3 – keyboard teleoperation
 ros2 run teleop_twist_keyboard teleop_twist_keyboard \
-  --ros-args -r /cmd_vel:=/diff_cont/cmd_vel_unstamped
+  --ros-args -r /cmd_vel:=/cmd_vel_key
 ```
 
 ---
