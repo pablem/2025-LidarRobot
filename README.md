@@ -296,7 +296,7 @@ ros2 control list_hardware_interfaces
 
 # Save SLAM map via service
 ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph \
-  "{filename: '/home/pablo/my_map'}"
+  "{filename: '/home/robot_lidar/my_map'}"
 
 # Check active ROS middleware
 ros2 doctor --report | grep middleware

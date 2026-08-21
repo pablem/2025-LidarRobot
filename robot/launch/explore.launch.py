@@ -51,7 +51,7 @@ def generate_launch_description():
         parameters=[{
             'exploration_time': 540.0, #540.0,  
             'idle_timeout': 60.0,  
-            'map_dir': '/home/pablo',
+            'map_dir': os.path.expanduser('~'),
             'map_base_name': 'explore',
             'overwrite_map': True,
             # Maniobra de docking: navega a (dock_x_offset, 0) y retrocede al dock

@@ -32,7 +32,7 @@ class ReturnToBase(Node):
         # ── Parámetros configurables ──────────────────────────────────────
         self.declare_parameter('exploration_time', 150.0)
         self.declare_parameter('idle_timeout', 20.0)           # segundos sin goals → exploración terminada
-        self.declare_parameter('map_dir', '/home/pablo')
+        self.declare_parameter('map_dir', os.path.expanduser('~'))
         self.declare_parameter('map_base_name', 'explore')
         self.declare_parameter('overwrite_map', True)
         self.declare_parameter('battery_topic', '/battery_state')
