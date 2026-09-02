@@ -30,7 +30,7 @@ def generate_launch_description():
     )
 
     # Gazebo Fortress con el mundo de obstáculos (-r: corre al iniciar)
-    world = os.path.join(pkg_share, 'worlds', 'obstacles_gz.sdf')
+    world = os.path.join(pkg_share, 'worlds', 'obstacles2_gz.sdf')
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
             get_package_share_directory('ros_gz_sim'), 'launch', 'gz_sim.launch.py')]),

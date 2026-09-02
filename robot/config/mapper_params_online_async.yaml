@@ -51,11 +51,14 @@ slam_toolbox:
     link_match_minimum_response_fine: 0.1  
     link_scan_maximum_distance: 1.0  # posible origen de saltos grandes en correcciones del mapa  
     loop_search_maximum_distance: 3.0
-    do_loop_closing: false # origen de saltos grandes en correcciones del mapa
+    do_loop_closing: true  # REACTIVADO para 280 rpm. Se apagó a 200 rpm porque daba saltos grandes:
+                           # con 0.300 s de barrido el scan salía deformado ~7-10° en rotación y el
+                           # matcher aceptaba cierres falsos. A 0.214 s el smear cae a 4.9° (w=0.4).
+                           # Si vuelven los saltos: primero subir los thresholds de abajo, no apagar esto.
     loop_match_minimum_chain_size: 10           
     loop_match_maximum_variance_coarse: 3.0  
-    loop_match_minimum_response_coarse: 0.35    
-    loop_match_minimum_response_fine: 0.45
+    loop_match_minimum_response_coarse: 0.45  # default 0.35; subido: acepta menos candidatos, pero mejores
+    loop_match_minimum_response_fine: 0.55    # default 0.45; este es el gate que evita el cierre falso
 
     # Correlation Parameters - Correlation Parameters
     correlation_search_space_dimension: 0.5

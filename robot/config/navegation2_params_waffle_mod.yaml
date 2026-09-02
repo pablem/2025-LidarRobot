@@ -180,20 +180,23 @@ controller_server:
                          # consciente de colisiones. NO rehabilitar reversa acá (-0.10) sin aceptar la
                          # "reversa de crucero": DWB la elegía para tramos largos. Ver memoria nav2-dwb-reverse.
       min_vel_y: 0.0
-      max_vel_x: 0.18
+      max_vel_x: 0.18       # real = 0.18; sim = 0.30
       max_vel_y: 0.0
-      max_vel_theta: 0.4    # desde 0.6 → error en giro pasa de ~10° a ~7°
+      max_vel_theta: 0.56   # real = 0.56 @280rpm; sim = 0.8. El smear es omega*periodo_barrido:
+                            # 0.56*0.214 = 6.9°, idéntico a 0.6*0.200 @300rpm y a 0.4*0.300 @200rpm.
+                            # Mantener ese presupuesto de smear al cambiar las rpm: omega = 0.12/T.
       min_speed_xy: 0.0
-      max_speed_xy: 0.18
+      max_speed_xy: 0.18    # real = 0.18; sim = 0.30
       min_speed_theta: 0.0
 
       # ── ACELERACIONES ─────────────────────────────────────────────────────
       acc_lim_x: 1.5        # m/s²;
       acc_lim_y: 0.0
-      acc_lim_theta: 1.3    # rad/s²; 
+      acc_lim_theta: 1.9    # rad/s²; real = 1.9 @280rpm (coherente con 0.56;
+                            # sim = 2.2
       decel_lim_x: -1.5
       decel_lim_y: 0.0
-      decel_lim_theta: -1.3
+      decel_lim_theta: -1.9   # real = -1.9 @280rpm; sim = -2.2
 
       # ── MUESTREO DE TRAYECTORIAS DWA ─────────────────────────────────────
       # vx_samples: cuántas velocidades lineales simular
@@ -243,14 +246,16 @@ controller_server_rclcpp_node:
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 7.0  # 8.0 aliviar Pi
-      # Si vuelve a saturar, bajar a 6.0 (aparecen muchos Control loop missed desired rate)
+      update_frequency: 7.0  # 1.5x el LiDAR (4.67 Hz @280rpm)
+      # Si satura la Raspberry, bajar a 5.0.
       publish_frequency: 3.0
       global_frame: odom
       robot_base_frame: base_link
       use_sim_time: False
       rolling_window: true
-      transform_tolerance: 0.5  # delay observado en map→odom llega a 0.247s; default 0.3s era insuficiente
+      transform_tolerance: 0.5  # el /scan viene estampado 1 periodo de barrido atrás: 0.214s @280rpm
+                                # (0.20s @300rpm, 0.30s @200rpm). A 280rpm sobra margen; se deja en 0.5 porque también
+                                # cubre el retardo de publicación de map→odom, que no cambió.
 
       # ── TAMAÑO DEL COSTMAP LOCAL ──────────────────────────────────────────
       # 4x4 metros es el área alrededor del robot 
@@ -275,8 +280,8 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.27 # DEBE ser >= robot_radius (0.30); el gradiente de 3cm centra en la puerta
-        cost_scaling_factor: 1.2  # gradiente de centrado (solo actúa si inflation_radius > robot_radius)
+        inflation_radius: 0.55 # anillo de gradiente de 0.32 m (~11 celdas a 3cm). NO bloquea:
+        cost_scaling_factor: 3.0  # Antes 0.30/1.2 → 1.7 celdas, sin gradiente útil
 
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -339,7 +344,7 @@ global_costmap:
 
       # ── RADIO DEL ROBOT (global) ──────────────────────────────────────────
       # Modelo CIRCULAR — 
-      robot_radius: 0.25
+      robot_radius: 0.25  # ídem local; debe coincidir o el global planifica rutas que el local rechaza
       # footprint: "[ [-0.056, -0.218], [-0.056, 0.218], [0.277, 0.218], [0.277, -0.218] ]"  # rectangulo real
 
       resolution: 0.03  # 3cm/celda; antes 0.05 — global costmap
@@ -393,8 +398,8 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 1.2  # gradiente extendido → NavFn prefiere rutas alejadas de esquinas
-        inflation_radius: 0.28 # Siempre debe ser MAYOR que el local
+        cost_scaling_factor: 3.0  # decaimiento rápido = menos repulsión = rutas más directas. Antes 1.2
+        inflation_radius: 0.65 # anillo de 0.42 m (~14 celdas): NavFn centra la ruta en el vano de la puerta
 
       always_send_full_costmap: True
 
@@ -458,9 +463,10 @@ behavior_server:
 
     # ── VELOCIDADES DE RECUPERACIÓN ───────────────────────────────────────
     # Estas velocidades se usan cuando el robot está atascado y ejecuta un spin.
-    max_rotational_vel: 0.4   # igual a max_vel_theta del controlador
+    max_rotational_vel: 0.56  # real = 0.56 @280rpm; sim = 0.8. Igual a max_vel_theta del controlador
     min_rotational_vel: 0.2   # ~50% del máximo; antes 0.3 dejaba rango muy estrecho (0.3–0.7)
-    rotational_acc_lim: 1.5   # igual a acc_lim_theta del controlador
+    rotational_acc_lim: 1.9   # igual a acc_lim_theta del controlador (real = 1.9 @280rpm; sim = 2.2).
+                              # Era 1.5, quedó desfasado cuando el controlador subió de 1.3
 
 robot_state_publisher:
   ros__parameters:
