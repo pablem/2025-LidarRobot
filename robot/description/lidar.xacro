@@ -28,24 +28,20 @@
             <pose>0 0 0 0 0 0</pose>
             <topic>scan</topic>
             <ignition_frame_id>laser_frame</ignition_frame_id>
-            <!-- 4.67 Hz = 280 rpm (velocidad real medida del XV-11). Barrido = 0.214 s.
-                 Debe coincidir con las rpm reales del firmware: si la sim va más
-                 rápido que el sensor real, la tuning de Nav2 no transfiere.
-                 Referencias: 300 rpm → 5.0; 200 rpm → 3.33. -->
-            <update_rate>4.67</update_rate>
+            <update_rate>5</update_rate>
             <always_on>1</always_on>
             <visualize>true</visualize>
             <lidar>
                 <scan>
                     <horizontal>
-                        <samples>360</samples>
+                        <samples>120</samples>
                         <min_angle>-3.14159</min_angle>
                         <max_angle>3.14159</max_angle>
                     </horizontal>
                 </scan>
                 <range>
                     <min>0.16</min>
-                    <max>6.0</max>
+                    <max>3.0</max>
                 </range>
             </lidar>
         </sensor>
