@@ -267,7 +267,11 @@ local_costmap:
       # Modelo CIRCULAR (no footprint): base_link está casi atrás (footprint iba de x=-0.06 a 0.28),
       # el centro de rotación está corrido → al girar en el lugar el frente barre un arco grande
       # 0.30
-      robot_radius: 0.25
+      robot_radius: 0.23  # = radio inscrito = radio de la banda CIAN (coste 253) del costmap.
+                          # Es bloqueo duro: DWB/BaseObstacle lanza IllegalTrajectory en 253 y NavFn
+                          # la trata como obstáculo. Semiancho real del robot = 0.218 m (wheels incl.),
+                          # así que 0.23 deja 1.2 cm de margen lateral. NO bajar más.
+                          # Puerta de 1.2 m -> carril libre de cian = 1.2 - 2*0.23 = 0.74 m.
       # footprint: "[ [-0.056, -0.218], [-0.056, 0.218], [0.277, 0.218], [0.277, -0.218] ]"  # rectángulo real
 
       # ── CAPAS DEL COSTMAP ─────────────────────────────────────────────────
@@ -280,7 +284,8 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.55 # anillo de gradiente de 0.32 m (~11 celdas a 3cm). NO bloquea:
+        inflation_radius: 0.40 # REGLA: debe ser < mitad del vano más angosto que hay que cruzar.
+                               # Puerta de 1.2 m -> mitad = 0.60 m. 
         cost_scaling_factor: 3.0  # Antes 0.30/1.2 → 1.7 celdas, sin gradiente útil
 
       obstacle_layer:
@@ -344,7 +349,7 @@ global_costmap:
 
       # ── RADIO DEL ROBOT (global) ──────────────────────────────────────────
       # Modelo CIRCULAR — 
-      robot_radius: 0.25  # ídem local; debe coincidir o el global planifica rutas que el local rechaza
+      robot_radius: 0.23  # ídem local; debe coincidir o el global planifica rutas que el local rechaza
       # footprint: "[ [-0.056, -0.218], [-0.056, 0.218], [0.277, 0.218], [0.277, -0.218] ]"  # rectangulo real
 
       resolution: 0.03  # 3cm/celda; antes 0.05 — global costmap
@@ -399,7 +404,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0  # decaimiento rápido = menos repulsión = rutas más directas. Antes 1.2
-        inflation_radius: 0.65 # anillo de 0.42 m (~14 celdas): NavFn centra la ruta en el vano de la puerta
+        inflation_radius: 0.45 
 
       always_send_full_costmap: True
 
