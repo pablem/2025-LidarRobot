@@ -13,6 +13,14 @@
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>twist_mux</exec_depend>
   <exec_depend>robot_localization</exec_depend>
+  <!-- GUIs (robot_menu, battery_monitor, odom_monitor) -->
+  <exec_depend>python3-tk</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>lifecycle_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>tf2_ros_py</exec_depend>
+  <exec_depend>teleop_twist_keyboard</exec_depend>
   <!-- Simulación: Gazebo Fortress (Ignition Gazebo 6) -->
   <exec_depend>ros_gz_sim</exec_depend>
   <exec_depend>ros_gz_bridge</exec_depend>

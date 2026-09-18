@@ -47,4 +47,16 @@ install(PROGRAMS
   RENAME battery_monitor
 )
 
+install(PROGRAMS
+  scripts/odom_monitor.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME odom_monitor
+)
+
+install(PROGRAMS
+  scripts/robot_menu.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME robot_menu
+)
+
 ament_package()

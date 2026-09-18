@@ -29,14 +29,8 @@ COLOR_STALE = '#9e9e9e'
 # las lecturas solo se hacen con el robot quieto (ver diffbot_system.cpp).
 STALE_TIMEOUT = 180.0
 
-# power_supply_status (sensor_msgs/BatteryState)
-STATUS_TEXT = {
-    0: 'DESCONOCIDO',
-    1: 'CARGANDO',
-    2: 'DESCARGANDO',
-    3: 'NO CARGA',
-    4: 'LLENA',
-}
+# Estado inferido por la tendencia de tensión entre lecturas consecutivas:
+# si sube → CARGANDO, si no → DESCARGANDO.
 
 
 class BatteryMonitor(Node):
@@ -52,12 +46,15 @@ class BatteryMonitor(Node):
 
         self.last_state = None
         self.last_minutes = None
+        self.charging = False
         self.last_rx = None  # rclpy.time.Time de la última recepción
 
         self.create_subscription(BatteryState, battery_topic, self._on_state, 10)
         self.create_subscription(Float32, time_topic, self._on_time, 10)
 
     def _on_state(self, msg):
+        if self.last_state is not None:
+            self.charging = msg.voltage > self.last_state.voltage
         self.last_state = msg
         self.last_rx = self.get_clock().now()
 
@@ -152,7 +149,7 @@ class BatteryGui:
         else:
             self.minutes_var.set('-- min')
 
-        self.status_var.set(STATUS_TEXT.get(st.power_supply_status, 'DESCONOCIDO'))
+        self.status_var.set('CARGANDO' if node.charging else 'DESCARGANDO')
 
     def _on_close(self):
         self.closing = True

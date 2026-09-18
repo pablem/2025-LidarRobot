@@ -24,9 +24,38 @@ ros2 launch robot launch_robot.launch.py
 # SLAM + Nav2 (ejecutar después del anterior)
 ros2 launch robot slam_nav.launch.py
 
-# Exploración autónoma con explore_lite (ejecutar después de los dos anteriores)
-ros2 launch explore_lite explore.launch.py
+# Exploración autónoma: undock + explore_lite + return_to_base (después de los dos anteriores)
+ros2 launch robot explore.launch.py
 ```
+
+### Menú GUI (`robot/scripts/robot_menu.py`)
+Alternativa a escribir los comandos a mano. Corre **en la PC** (Windows con
+RoboStack/pixi, o Linux); los launch y el motor del LiDAR se ejecutan en la
+Raspberry **por SSH**, las herramientas (teleop, rviz, monitores) localmente.
+```bash
+# desde ~/robotLidar en el pixi shell de Windows
+pixi run python src\robot\scripts\robot_menu.py
+# otro host / workspace remoto:
+pixi run python src\robot\scripts\robot_menu.py --ros-args -p ssh_host:=robot_lidar@192.168.1.50 -p remote_ws:=~/robotLidar
+```
+- Requiere `ssh robot_lidar@pi` **sin password** (clave en `authorized_keys` de la
+  Raspberry; los pasos están en el docstring del script). Al abrir verifica la conexión
+  y que exista el puerto del LiDAR.
+- **Raspberry**: checkbox *Motor LiDAR* → `printf 'MotorOn\n' > /dev/serial/by-id/usb-Arduino_LLC_Arduino_Leonardo-if00`
+  (o `MotorOff`) por ssh.
+- **Stack**: tres checkboxes encadenados (hardware → SLAM+Nav2 → exploración), cada uno
+  un `ssh -tt pi 'source ... && exec ros2 launch robot <x>.launch.py'`. El siguiente se
+  habilita recién cuando el anterior está *activo*, verificado contra el grafo ROS y no
+  por timer: nodos `/controller_manager`, `/diff_cont`, `/neato_laser` + publishers en
+  `/scan` y `/odom`; publisher en `/map` + `bt_navigator`, `controller_server` y
+  `planner_server` en estado lifecycle `active`; nodo `/explore_node`. Destildar escribe
+  `^C` en el pty remoto (= Ctrl+C al launch) y apaga en cascada los dependientes; si no
+  cierra en 10 s escala a `pkill` remoto. Si un launch ya corría desde otra terminal
+  aparece como "activo (externo)".
+- **Herramientas** (locales, independientes): teleop en consola nueva (remapeado a
+  `/cmd_vel_key`), `rviz2 -d nav.rviz`, `battery_monitor.py`, `odom_monitor.py`
+  (velocidad + pose odom/map).
+- Salida de cada proceso en `<tmp>/robot_menu_<nombre>.log`.
 
 ## Arquitectura
 
