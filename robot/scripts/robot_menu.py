@@ -5,19 +5,24 @@ Menú GUI (Tkinter) para operar el robot sin escribir comandos.
 
 Corre en la PC (Windows con RoboStack/pixi, o Linux). Los launch del stack y
 el motor del LiDAR necesitan los puertos serie de la Raspberry, así que se
-ejecutan allá por SSH; las herramientas (teleop, rviz, monitores) corren en
-la PC y se comunican por DDS como siempre.
+ejecutan allá por SSH (con contraseña, vía paramiko); las herramientas
+(teleop, rviz, monitores) corren en la PC y se comunican por DDS como siempre.
 
-    python robot_menu.py
-    python robot_menu.py --ros-args -p ssh_host:=robot_lidar@192.168.1.50
+    python robot_menu.py --ros-args -p ssh_host:=robot_lidar@10.57.245.137 -p ssh_password:=tu_contraseña
 
-Requisitos: `ssh <ssh_host>` debe entrar SIN password (clave SSH instalada en
-~/.ssh/authorized_keys de la Raspberry). Ver "Pasos en Windows" al final.
+`ssh_host` tiene un default razonable (ver DEFAULT_SSH_HOST más abajo), pero
+`ssh_password` es obligatorio: si no se pasa, el programa avisa por consola
+y no arranca. No hace falta tener configurada una clave SSH sin contraseña;
+la contraseña solo vive en memoria durante la sesión, nunca se guarda en disco
+(aunque al pasarla por línea de comandos queda en el historial de la consola).
+
+Requisitos: paquete `paramiko` en el entorno (pixi/conda-forge).
 
 Grupos:
 
   Raspberry
     - Motor LiDAR: manda `printf 'MotorOn\\n' > <puerto>` / MotorOff por SSH.
+      Se deshabilita mientras cualquier checkbox del Stack esté tildado.
 
   Stack (encadenados, por SSH): cada uno se habilita recién cuando el anterior
   está ACTIVO, verificado consultando el grafo ROS (nodos, publishers, estado
@@ -25,20 +30,17 @@ Grupos:
     1. launch_robot.launch.py  → hardware, ros2_control, LiDAR, EKF
     2. slam_nav.launch.py      → slam_toolbox + Nav2
     3. explore.launch.py       → undock + explore_lite + return_to_base
-  Destildar manda Ctrl+C al launch remoto (byte ^C por el pty de ssh) y en
+  Destildar manda Ctrl+C al launch remoto (byte ^C por el canal pty) y en
   cascada a los que dependen de él. Si un launch muere solo, el checkbox se
   destilda y queda en ERROR. Si ya estaba corriendo desde otra terminal se
   muestra "activo (externo)" y habilita el siguiente, pero no se detiene desde acá.
 
   Herramientas (locales, independientes): teleop en una consola nueva, rviz2,
   monitor de batería y monitor de odometría. Checked = proceso abierto.
+  Teleop es interactivo: su consola nueva no se redirige a un log (necesita
+  teclado real), así que no deja rastro en <tmp>.
 
-La salida de cada proceso se guarda en <tmp>/robot_menu_<nombre>.log.
-
-Pasos en Windows (una sola vez, en PowerShell):
-    ssh-keygen -t ed25519                       # Enter a todo
-    type $env:USERPROFILE\\.ssh\\id_ed25519.pub | ssh robot_lidar@pi "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys"
-    ssh robot_lidar@pi hostname                 # debe responder sin pedir password
+La salida del resto de los procesos se guarda en <tmp>/robot_menu_<nombre>.log.
 """
 
 import os
@@ -46,6 +48,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -54,6 +57,16 @@ import rclpy
 from rclpy.node import Node
 from lifecycle_msgs.srv import GetState
 from lifecycle_msgs.msg import State
+
+try:
+    import paramiko
+    HAS_PARAMIKO = True
+    PARAMIKO_IMPORT_ERROR = None
+except Exception as _e:  # ImportError normalmente, pero también fallas de
+    # la librería nativa (p. ej. cryptography incompatible) que no son
+    # ImportError y antes se colaban sin mensaje, matando el script en frío.
+    HAS_PARAMIKO = False
+    PARAMIKO_IMPORT_ERROR = _e
 
 IS_WINDOWS = sys.platform.startswith('win')
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -65,8 +78,11 @@ COLOR_STARTING = '#ef6c00'
 COLOR_ACTIVE = '#2e7d32'
 COLOR_ERROR = '#c62828'
 
-# s en STARTING sin pasar las verificaciones antes de avisar (no se mata)
-START_WARN_TIMEOUT = 90.0
+# s en STARTING sin pasar el ready_check antes de darlo por activo igual (no
+# se mata): el chequeo por grafo ROS puede no confirmar nunca por motivos
+# ajenos al proceso real (p. ej. descubrimiento de servicios lifecycle a
+# través de la red), así que no tiene sentido dejarlo bloqueado para siempre.
+START_WARN_TIMEOUT = 60.0
 # s de espera tras Ctrl+C antes de escalar (pkill remoto / kill local)
 STOP_GRACE = 10.0
 # Período de re-consulta del estado lifecycle de Nav2
@@ -76,11 +92,9 @@ LIFECYCLE_PROBE_PERIOD = 2.0
 TOOL_ERROR_WINDOW = 5.0
 
 # Defaults de conexión a la Raspberry (sobreescribibles por parámetro ROS)
-DEFAULT_SSH_HOST = 'robot_lidar@pi'
+DEFAULT_SSH_HOST = 'robot_lidar@10.57.245.137'
 DEFAULT_REMOTE_WS = '~/robotLidar'
 DEFAULT_LIDAR_PORT = '/dev/serial/by-id/usb-Arduino_LLC_Arduino_Leonardo-if00'
-SSH_OPTS = ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5',
-            '-o', 'StrictHostKeyChecking=accept-new']
 
 # Estados de un proceso gestionado
 OFF, STARTING, ACTIVE, EXTERNAL, STOPPING, ERROR = range(6)
@@ -108,9 +122,11 @@ class MenuNode(Node):
     def __init__(self, lifecycle_nodes):
         super().__init__('robot_menu')
         self.declare_parameter('ssh_host', DEFAULT_SSH_HOST)
+        self.declare_parameter('ssh_password', '')
         self.declare_parameter('remote_ws', DEFAULT_REMOTE_WS)
         self.declare_parameter('lidar_port', DEFAULT_LIDAR_PORT)
         self.ssh_host = self.get_parameter('ssh_host').value
+        self.ssh_password = self.get_parameter('ssh_password').value
         self.remote_ws = self.get_parameter('remote_ws').value
         self.lidar_port = self.get_parameter('lidar_port').value
 
@@ -154,7 +170,108 @@ class MenuNode(Node):
         return self._lc_state.get(name) == State.PRIMARY_STATE_ACTIVE
 
 
-# ── Ejecución de procesos (local y remoto) ─────────────────────────────
+# ── Conexión SSH por contraseña (paramiko) ─────────────────────────────
+
+class RemoteSession:
+    """Conexión SSH persistente autenticada por contraseña. Reemplaza al
+    binario `ssh` local para no depender de una clave sin passphrase."""
+
+    def __init__(self, host_string, password):
+        if '@' in host_string:
+            user, hostname = host_string.split('@', 1)
+        else:
+            user, hostname = None, host_string
+        self.host_string = host_string
+        self.hostname = hostname
+        self.username = user
+        self.password = password
+        self.client = paramiko.SSHClient()
+        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    def connect(self, timeout=8.0):
+        self.client.connect(self.hostname, username=self.username,
+                            password=self.password, timeout=timeout,
+                            allow_agent=False, look_for_keys=False)
+        transport = self.client.get_transport()
+        if transport is not None:
+            transport.set_keepalive(15)
+
+    def close(self):
+        try:
+            self.client.close()
+        except Exception:
+            pass
+
+    def exec_quick(self, command, timeout=15.0):
+        """Ejecuta un comando corto y devuelve (rc, salida combinada)."""
+        stdin, stdout, stderr = self.client.exec_command(command, timeout=timeout)
+        out = stdout.read() + stderr.read()
+        rc = stdout.channel.recv_exit_status()
+        return rc, out.decode(errors='replace')
+
+    def open_pty(self, command):
+        """Abre un canal con pty y ejecuta `command`. Un Ctrl+C se simula
+        escribiendo el byte 0x03 en el canal (ver ChannelProc)."""
+        chan = self.client.get_transport().open_session()
+        chan.get_pty()
+        chan.exec_command(command)
+        chan.settimeout(0.0)
+        return chan
+
+
+class ChannelProc:
+    """Envuelve un canal paramiko (con pty) para que ManagedProcess lo trate
+    igual que un subprocess.Popen: poll()/wait() y stdin.write()/flush()."""
+
+    def __init__(self, channel, log_file):
+        self.channel = channel
+        self._log = log_file
+        self._rc = None
+        self.stdin = self
+        self._thread = threading.Thread(target=self._pump, daemon=True)
+        self._thread.start()
+
+    def _pump(self):
+        while True:
+            try:
+                if self.channel.recv_ready():
+                    data = self.channel.recv(4096)
+                    if data:
+                        self._log.write(data.decode(errors='replace'))
+                        self._log.flush()
+                        continue
+            except Exception:
+                pass
+            if self.channel.exit_status_ready():
+                break
+            time.sleep(0.05)
+        try:
+            self._rc = self.channel.recv_exit_status()
+        except Exception:
+            self._rc = -1
+
+    def poll(self):
+        return self._rc
+
+    def wait(self):
+        self._thread.join()
+        return self._rc
+
+    def write(self, data):
+        try:
+            self.channel.send(data)
+        except OSError:
+            pass
+
+    def flush(self):
+        pass
+
+    @property
+    def pid(self):
+        return id(self)
+
+
+# ── Ejecución de procesos locales ──────────────────────────────────────
 
 def _popen_kwargs(new_console=False):
     """Flags de creación según plataforma."""
@@ -181,28 +298,23 @@ def _kill_tree(proc, sig=None):
             pass
 
 
-def ssh_cmd(host, remote_command, tty=False):
-    """Comando ssh para ejecutar `remote_command` en la Raspberry.
-    tty=True fuerza pty: así el Ctrl+C escrito en stdin llega como ^C al
-    proceso remoto y ros2 launch cierra limpio."""
-    cmd = ['ssh'] + SSH_OPTS
-    if tty:
-        cmd += ['-tt']
-    return cmd + [host, remote_command]
-
-
 class ManagedProcess:
-    """Proceso de larga duración lanzado desde el menú (local o ssh)."""
+    """Proceso de larga duración lanzado desde el menú (local o remoto)."""
 
-    def __init__(self, name, cmd, ready_check=None, remote_pattern=None,
-                 host=None, new_console=False):
+    def __init__(self, name, cmd=None, ready_check=None, remote_pattern=None,
+                 remote_command=None, session=None, new_console=False,
+                 interactive=False):
         self.name = name
         self.cmd = cmd
         self.ready_check = ready_check  # None → activo apenas arranca
         # Para procesos remotos: patrón pkill -f para escalar el apagado
         self.remote_pattern = remote_pattern
-        self.host = host
+        self.remote_command = remote_command
+        self.session = session
         self.new_console = new_console
+        # True: no redirigir stdin/stdout a un log — el proceso necesita su
+        # propia consola real para teclado interactivo (p. ej. teleop).
+        self.interactive = interactive
         self.proc = None
         self.state = OFF
         self.detail = ''
@@ -220,14 +332,33 @@ class ManagedProcess:
         return self.remote_pattern is not None
 
     def start(self):
+        if self.interactive:
+            # Sin redirección: hereda la consola nueva (CREATE_NEW_CONSOLE)
+            # con su propio stdin/stdout, así el teclado llega al proceso.
+            self._log = None
+            try:
+                self.proc = subprocess.Popen(self.cmd, **_popen_kwargs(self.new_console))
+            except Exception as e:
+                self.state = ERROR
+                self.detail = str(e)
+                return
+            self.state = STARTING
+            self.detail = ''
+            self.t_start = time.monotonic()
+            self._escalated = False
+            return
+
         log_path = os.path.join(LOG_DIR, f'robot_menu_{self.name}.log')
         self._log = open(log_path, 'w')
         try:
-            self.proc = subprocess.Popen(
-                self.cmd, stdout=self._log, stderr=subprocess.STDOUT,
-                stdin=subprocess.PIPE if self.is_remote else subprocess.DEVNULL,
-                **_popen_kwargs(self.new_console))
-        except OSError as e:
+            if self.is_remote:
+                chan = self.session.open_pty(self.remote_command)
+                self.proc = ChannelProc(chan, self._log)
+            else:
+                self.proc = subprocess.Popen(
+                    self.cmd, stdout=self._log, stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL, **_popen_kwargs(self.new_console))
+        except Exception as e:
             self._log.close()
             self._log = None
             self.state = ERROR
@@ -244,7 +375,7 @@ class ManagedProcess:
         self.state = STOPPING
         self.t_stop = time.monotonic()
         if self.is_remote:
-            # ^C por el pty remoto → SIGINT a ros2 launch en la Raspberry
+            # ^C por el canal remoto → SIGINT a ros2 launch en la Raspberry
             try:
                 self.proc.stdin.write(b'\x03')
                 self.proc.stdin.flush()
@@ -254,15 +385,20 @@ class ManagedProcess:
             _kill_tree(self.proc)
 
     def _escalate(self):
-        """Pasados STOP_GRACE s sin cerrar: pkill remoto + kill local."""
+        """Pasados STOP_GRACE s sin cerrar: pkill remoto (en un hilo aparte,
+        exec_command es bloqueante) o kill local."""
         if self._escalated:
             return
         self._escalated = True
         if self.is_remote:
-            subprocess.Popen(ssh_cmd(self.host, f"pkill -TERM -f '{self.remote_pattern}'"),
-                             stdout=self._log, stderr=subprocess.STDOUT,
-                             stdin=subprocess.DEVNULL, **_popen_kwargs())
-        _kill_tree(self.proc, signal.SIGTERM if not IS_WINDOWS else None)
+            def _do():
+                try:
+                    self.session.exec_quick(f"pkill -TERM -f '{self.remote_pattern}'")
+                except Exception:
+                    pass
+            threading.Thread(target=_do, daemon=True).start()
+        else:
+            _kill_tree(self.proc, signal.SIGTERM if not IS_WINDOWS else None)
 
     def _reap(self):
         self.proc.wait()
@@ -290,20 +426,31 @@ class ManagedProcess:
                 waited = time.monotonic() - self.t_stop
                 if waited > STOP_GRACE:
                     self._escalate()
-                if waited > 2 * STOP_GRACE and not IS_WINDOWS:
-                    _kill_tree(self.proc, signal.SIGKILL)
+                if waited > 2 * STOP_GRACE:
+                    if self.is_remote:
+                        try:
+                            self.proc.channel.close()
+                        except Exception:
+                            pass
+                    elif not IS_WINDOWS:
+                        _kill_tree(self.proc, signal.SIGKILL)
                 self.detail = f'{waited:.0f} s'
                 return False
 
+            waited = time.monotonic() - self.t_start
             if self.ready_check is None or self.ready_check(node):
                 self.state = ACTIVE
                 self.detail = ''
+            elif waited > START_WARN_TIMEOUT:
+                # El proceso sigue vivo pero el ready_check nunca confirmó:
+                # lo damos por activo para no dejarlo bloqueado a partir de
+                # una detección que puede no ser confiable (ver comentario
+                # de START_WARN_TIMEOUT).
+                self.state = ACTIVE
+                self.detail = '(sin confirmar por ROS, ver log)'
             else:
                 self.state = STARTING
-                waited = time.monotonic() - self.t_start
                 self.detail = f'{waited:.0f} s'
-                if waited > START_WARN_TIMEOUT:
-                    self.detail += ' — sin respuesta, revisar log'
             return False
 
         # No es nuestro: ¿está corriendo desde otra terminal?
@@ -317,45 +464,48 @@ class ManagedProcess:
 
 
 class OneShot:
-    """Comando corto (p. ej. MotorOn por ssh): se ejecuta y se espera el
-    código de salida sin bloquear la GUI."""
+    """Comando corto (p. ej. MotorOn por ssh): se ejecuta en un hilo aparte
+    (exec_command es bloqueante) y se recoge el resultado sin bloquear la GUI."""
 
     def __init__(self, name):
         self.name = name
-        self.proc = None
-        self._log = None
         self.running = False
         self.last_rc = None
         self.last_label = ''
+        self._log_path = os.path.join(LOG_DIR, f'robot_menu_{name}.log')
+        self._done = False
+        self._result_rc = None
+        self._result_out = ''
 
-    def run(self, cmd, label):
+    def run(self, session, command, label):
         if self.running:
             return
-        log_path = os.path.join(LOG_DIR, f'robot_menu_{self.name}.log')
-        self._log = open(log_path, 'w')
-        self.last_label = label
-        try:
-            self.proc = subprocess.Popen(
-                cmd, stdout=self._log, stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL, **_popen_kwargs())
-        except OSError as e:
-            self._log.write(str(e))
-            self._log.close()
-            self.last_rc = -1
-            return
         self.running = True
+        self._done = False
+        self.last_label = label
+
+        def _do():
+            try:
+                rc, out = session.exec_quick(command)
+            except Exception as e:
+                rc, out = -1, str(e)
+            self._result_rc = rc
+            self._result_out = out
+            self._done = True
+
+        threading.Thread(target=_do, daemon=True).start()
 
     def poll(self):
         """True cuando el comando acaba de terminar."""
-        if not self.running:
+        if not self.running or not self._done:
             return False
-        rc = self.proc.poll()
-        if rc is None:
-            return False
-        self.proc.wait()
-        self._log.close()
+        try:
+            with open(self._log_path, 'w') as f:
+                f.write(self._result_out)
+        except OSError:
+            pass
+        self.last_rc = self._result_rc
         self.running = False
-        self.last_rc = rc
         return True
 
 
@@ -381,9 +531,18 @@ def explore_ready(node):
     return node.node_exists('/explore_node')
 
 
+def connect_session(node):
+    """Conecta con host/contraseña recibidos por parámetro ROS. Lanza la
+    excepción de paramiko si falla (la maneja el llamador)."""
+    session = RemoteSession(node.ssh_host, node.ssh_password)
+    session.connect()
+    return session
+
+
 class MenuGui:
-    def __init__(self, node):
+    def __init__(self, node, session):
         self.node = node
+        self.session = session
         self.closing = False
         host = node.ssh_host
 
@@ -396,8 +555,9 @@ class MenuGui:
             # '[r]os2' evita que pkill -f mate al propio shell que lo ejecuta
             pattern = '[r]' + launch[1:]
             return ManagedProcess(
-                name, ssh_cmd(host, f'{remote_setup} && exec {launch}', tty=True),
-                ready, remote_pattern=pattern, host=host)
+                name, ready_check=ready, remote_pattern=pattern,
+                remote_command=f'{remote_setup} && exec {launch}',
+                session=self.session)
 
         # Cadena principal: cada uno depende del anterior
         self.stack = [
@@ -418,7 +578,7 @@ class MenuGui:
         if not IS_WINDOWS:
             teleop = ['xterm', '-T', 'teleop_twist_keyboard', '-e'] + teleop
         self.tools = [
-            ManagedProcess('teleop', teleop, new_console=True),
+            ManagedProcess('teleop', teleop, new_console=True, interactive=True),
             ManagedProcess('rviz', ['rviz2', '-d', os.path.normpath(RVIZ_CONFIG)]),
             ManagedProcess('battery', [py, os.path.join(SCRIPT_DIR, 'battery_monitor.py')]),
             ManagedProcess('odom', [py, os.path.join(SCRIPT_DIR, 'odom_monitor.py')]),
@@ -448,8 +608,8 @@ class MenuGui:
         tk.Label(self.root, text=f'logs en {LOG_DIR}{os.sep}robot_menu_<nombre>.log',
                  fg=COLOR_OFF, font=('TkDefaultFont', 8)).pack(pady=(4, 6))
 
-        # Prueba de conexión al arrancar: ssh sin password y puerto del LiDAR
-        self.ssh_check.run(ssh_cmd(host, f'ls -l {node.lidar_port}'), 'ssh')
+        # Prueba de conexión al arrancar: ssh ok y puerto del LiDAR presente
+        self.ssh_check.run(self.session, f'ls -l {node.lidar_port}', 'ssh')
 
         self.root.after(100, self._tick)
 
@@ -492,7 +652,7 @@ class MenuGui:
     def _on_motor_toggle(self):
         word = 'MotorOn' if self.motor_var.get() else 'MotorOff'
         remote = f"printf '{word}\\n' > {self.node.lidar_port}"
-        self.motor.run(ssh_cmd(self.node.ssh_host, remote), word)
+        self.motor.run(self.session, remote, word)
         self.motor_status.config(text=f'enviando {word}…', fg=COLOR_STARTING)
         self.motor_cb.state(['disabled'])
 
@@ -533,11 +693,10 @@ class MenuGui:
                 self.ssh_status.config(text='ok', fg=COLOR_ACTIVE)
             else:
                 self.ssh_status.config(
-                    text='ERROR: sin acceso por clave o sin puerto LiDAR (ver log)',
+                    text='ERROR: sin acceso o sin puerto LiDAR (ver log)',
                     fg=COLOR_ERROR)
 
         if self.motor.poll():
-            self.motor_cb.state(['!disabled'])
             word = self.motor.last_label
             if self.motor.last_rc == 0:
                 on = word == 'MotorOn'
@@ -549,8 +708,15 @@ class MenuGui:
                 self.motor_status.config(text=f'ERROR al enviar {word} (ver log)',
                                          fg=COLOR_ERROR)
 
+        # Con cualquier launcher del Stack tildado, no se toca el motor
+        stack_active = any(row['var'].get() for row in self.stack_rows)
+        if self.motor.running or stack_active:
+            self.motor_cb.state(['disabled'])
+        else:
+            self.motor_cb.state(['!disabled'])
+
     def _refresh_stack(self):
-        prev_active = True  # el primero no depende de nada
+        prev_running = True  # el primero no depende de nada
         for i, (p, row) in enumerate(zip(self.stack, self.stack_rows)):
             exited = p.poll(self.node)
             if exited and p.state == ERROR:
@@ -567,11 +733,14 @@ class MenuGui:
 
             self._set_status(row, p)
 
-            # Habilitado si el anterior está activo; un proceso externo o en
-            # apagado no se puede (des)tildar
-            enabled = prev_active and p.state not in (EXTERNAL, STOPPING)
+            # Habilitado si el anterior arrancó (no hace falta que el
+            # ready_check lo confirme como ACTIVE: la detección por grafo
+            # ROS puede tardar o fallar por motivos ajenos al proceso real,
+            # y bloquear el siguiente paso en ese caso es más molesto que
+            # útil). Un proceso externo o en apagado no se puede (des)tildar.
+            enabled = prev_running and p.state not in (EXTERNAL, STOPPING)
             row['cb'].state(['!disabled'] if enabled else ['disabled'])
-            prev_active = p.state in (ACTIVE, EXTERNAL)
+            prev_running = p.state in (STARTING, ACTIVE, EXTERNAL)
 
     def _refresh_tools(self):
         for p, row in zip(self.tools, self.tool_rows):
@@ -625,15 +794,49 @@ class MenuGui:
         self.root.mainloop()
 
 
+def _fatal(msg):
+    print(msg, file=sys.stderr)
+
+
 def main():
+    if not HAS_PARAMIKO:
+        if PARAMIKO_IMPORT_ERROR is not None:
+            detail = f'{type(PARAMIKO_IMPORT_ERROR).__name__}: {PARAMIKO_IMPORT_ERROR}'
+        else:
+            detail = '(sin detalle)'
+        _fatal(
+            'No se pudo importar "paramiko" en este entorno.\n'
+            f'{detail}\n'
+            'Si el paquete ya está instalado, probá reinstalarlo con:\n'
+            '  pixi install --force-reinstall')
+        return
+
     rclpy.init()
     node = MenuNode(NAV2_LIFECYCLE_NODES)
-    gui = MenuGui(node)
+
+    if not node.ssh_password:
+        _fatal(
+            'Falta la contraseña SSH. Pasala por parámetro:\n'
+            '  --ros-args -p ssh_host:=usuario@ip -p ssh_password:=tu_contraseña')
+        node.destroy_node()
+        rclpy.shutdown()
+        return
+
+    try:
+        session = connect_session(node)
+    except Exception as e:
+        _fatal(f'No se pudo conectar a {node.ssh_host}:\n{e}')
+        node.destroy_node()
+        rclpy.shutdown()
+        return
+
+    gui = MenuGui(node, session)
     try:
         gui.run()
     except KeyboardInterrupt:
         pass
     finally:
+        session.close()
         node.destroy_node()
         rclpy.shutdown()
 
