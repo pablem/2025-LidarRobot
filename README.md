@@ -2,7 +2,7 @@
 
 **Autonomous differential-drive robot** built on a Raspberry Pi 4 running ROS 2 Humble. It uses a recycled Neato XV-11 LiDAR for 2D perception, an ESP32-S3 as the low-level motor controller, and the full ROS 2 navigation stack (ros2_control · SLAM Toolbox · Nav2).
 
-> 📖 Full documentation (Spanish): [Robot LiDAR 2025 – Notion](https://www.notion.so/352ce5a2286e801ca74dd87a884d5030)
+> 📖 Full documentation (Spanish): [Robot LiDAR 2026 – Notion](https://www.notion.so/352ce5a2286e801ca74dd87a884d5030)
 
 ---
 
@@ -30,7 +30,6 @@
 Sensors
   LiDAR: Neato XV-11  ──► /scan ──► SLAM Toolbox ──► Nav2
   IMU:   MPU-9250     ──► /imu/data_raw
-                      ──► Madgwick filter ──► /imu/data
                       ──► robot_localization EKF ──► /odom ──► Nav2
 ```
 
@@ -50,9 +49,10 @@ src/
 ├── robot/                   # Main ROS 2 package
 ├── diffdrive_arduino/       # ros2_control hardware interface
 ├── serial/                  # C++ serial library
-├── lidar_driver/            # XV-11 ROS 2 driver (fork for Humble)
+├── xv_11_laser_driver/      # XV-11 ROS 2 driver (fork for Humble)
 ├── mpu9250driver/           # IMU driver
-└── firmware/                # ESP32-S3 PlatformIO project
+├── m-explore-ros2/          # Frontier exploration (explore_lite)
+└── scripts/                 # IMU / magnetometer calibration scripts
 ```
 
 ### `robot/` (package)
@@ -61,9 +61,9 @@ Main robot package. Contains launchers, URDF/Xacro description, and all configur
 
 | Directory | Contents |
 |-----------|----------|
-| `launch/` | `launch_robot.launch.py` (real robot), `launch_sim.launch.py` (Gazebo) PENDING |
+| `launch/` | `launch_robot.launch.py` (real robot), `slam_nav.launch.py` (SLAM + Nav2), `explore.launch.py` (autonomous exploration), `launch_sim.launch.py` (Gazebo) |
 | `description/` | `robot.urdf.xacro`, `ros2_control.xacro`, `lidar.xacro`, `imu.xacro` |
-| `config/` | `my_controllers.yaml`, `mapper_params_online_async.yaml`, `nav2_params.yaml`, `ekf.yaml`, `twist_mux.yaml`, RViz2 configs |
+| `config/` | `my_controllers.yaml`, `mapper_params_online_async.yaml`, `navegation2_params_waffle_mod.yaml`, `ekf.yaml`, `twist_mux.yaml`, RViz2 configs |
 
 Forked from: [joshnewans/my_bot](https://github.com/joshnewans/my_bot)
 
@@ -78,6 +78,7 @@ Implements the `hardware_interface::SystemInterface` for `ros2_control`. Communi
 | `e\r` | Read encoder counts from both wheels |
 | `m <spd1> <spd2>\r` | Set closed-loop velocity targets (ticks/sample) |
 | `r\r` | Reset encoder counters |
+| `b\r` | Read battery pack voltage |
 
 The `diff_drive_controller` calls this interface every control cycle to read wheel positions/velocities and send updated speed commands.
 
@@ -94,11 +95,11 @@ Copied from: [joshnewans/serial](https://github.com/joshnewans/serial)
 
 ---
 
-### `lidar_driver/` (XV-11 ROS 2 driver)
+### `xv_11_laser_driver/` (XV-11 ROS 2 driver)
 
 Modified fork of the `xv_11_laser_driver` package, ported to **ROS 2 Humble**. Publishes `/scan` (`sensor_msgs/LaserScan`) at `frame_id: laser_frame`.
 
-The Neato XV-11 communicates at **115,200 baud**, generates 90 packets/revolution (22 bytes each), delivering 360 distance readings per revolution (15 cm – 6 m range).
+The Neato XV-11 communicates at **115,200 baud**, generates 90 packets/revolution (22 bytes each), delivering 360 distance readings per revolution (15 cm – 5 m range).
 
 Original ROS 1 driver: [ros-drivers/xv_11_laser_driver](http://wiki.ros.org/xv_11_laser_driver)  
 Protocol reference: [ssloy/neato-xv11-lidar](https://github.com/ssloy/neato-xv11-lidar)
@@ -110,13 +111,13 @@ Protocol reference: [ssloy/neato-xv11-lidar](https://github.com/ssloy/neato-xv11
 Driver for the **MPU-9250** (MPU-6500 accel/gyro + AK8963 magnetometer) over I2C. Publishes:
 
 - `/imu/data_raw` – raw acceleration and angular velocity (SI units)
-- `/imu/mag` – raw magnetometer reading (for Madgwick filter and calibration)
+- `/imu/mag` – raw magnetometer reading (for calibration; not fused by the EKF)
 
-Modified from [hiwad-aziz/ros2_mpu9250_driver](https://github.com/hiwad-aziz/ros2_mpu9250_driver). Changes: orientation estimation removed (delegated to Madgwick filter), block reads, SI unit conversion, magnetometer bias support, covariance corrections.
+Modified from [hiwad-aziz/ros2_mpu9250_driver](https://github.com/hiwad-aziz/ros2_mpu9250_driver). Changes: orientation estimation removed, block reads, SI unit conversion, magnetometer bias support, covariance corrections.
 
 ---
 
-### `firmware/` (ESP32-S3 – PlatformIO)
+### ESP32-S3 firmware (PlatformIO, separate repository)
 
 Low-level motor controller running on the **ESP32-S3** (PlatformIO + Arduino framework). Acts as a serial bridge between ROS 2 and the two DC motors.
 
@@ -153,10 +154,10 @@ Calibrated values used in `ros2_control.xacro` and `my_controllers.yaml`:
 
 | Parameter | Value |
 |-----------|-------|
-| `enc_counts_per_rev` (left) | 33 572 |
-| `enc_counts_per_rev` (right) | 32 717 |
+| `enc_counts_per_rev` (left) | 33 667 |
+| `enc_counts_per_rev` (right) | 41 800 |
 | `wheel_separation` | 0.408 m |
-| `wheel_radius` | 0.033 m |
+| `wheel_radius` | 0.056 m |
 | Serial baud rate | 57 600 |
 
 > The two encoders are not identical and are configured separately. Wheel separation was corrected empirically by measuring heading error after a 360° in-place rotation.
@@ -181,7 +182,8 @@ sudo apt install \
   ros-humble-joint-state-publisher \
   ros-humble-ros2-control \
   ros-humble-ros2-controllers \
-  ros-humble-gazebo-ros2-control \
+  ros-humble-ros-gz \
+  ros-humble-gz-ros2-control \
   ros-humble-slam-toolbox \
   ros-humble-navigation2 \
   ros-humble-nav2-bringup \
@@ -211,12 +213,11 @@ bash 2025-LidarRobot/setup_robotlidar.sh
 
 ```bash
 # Create workspace
-mkdir robot_ws
+mkdir -p ~/robotLidar
+cd ~/robotLidar
 
 # Clone (this repo IS the src/ folder)
-git clone https://github.com/pablem/2025-LidarRobot.git
-mv 2025-LidarRobot src
-cd ~/robot_ws
+git clone https://github.com/pablem/2025-LidarRobot.git src
 
 # Build
 colcon build --symlink-install
@@ -224,7 +225,7 @@ colcon build --symlink-install
 # Source the workspace
 source install/setup.bash
 # Or add permanently:
-echo "source ~/robot_ws/install/setup.bash" >> ~/.bashrc
+echo "source ~/robotLidar/install/setup.bash" >> ~/.bashrc
 ```
 
 > **Recommended:** switch to Cyclone DDS to fix synchronization issues between the XV-11 driver and SLAM Toolbox:
@@ -237,28 +238,23 @@ echo "source ~/robot_ws/install/setup.bash" >> ~/.bashrc
 
 ## Running
 
-### Real Robot PENDING
+### Real Robot
 
 ```bash
 # Terminal 1 – bring up robot (ros2_control, controllers, robot description)
 ros2 launch robot launch_robot.launch.py
-    # includes:  
-    # ros2 run xv_11_laser_driver neato_laser_publisher \
-        #--ros-args -p port:=/dev/serial/by-id/<your-device-id>
-    # ros2 launch mpu9250driver mpu9250driver_launch.py
-    # ros2 run imu_filter_madgwick imu_filter_madgwick_node \
-        #--ros-args -p use_mag:=false -p publish_tf:=false -p world_frame:=enu
-    # ros2 launch robot ekf_imu.launch.py
+    # includes: twist_mux, XV-11 LiDAR driver, MPU-9250 driver, robot_localization EKF
 
 # Terminal 2 - launch navigation and SLAM tools
-    # includes:
-    # ros2 launch slam_toolbox online_async_launch.py \
-        # slam_params_file:=~/robot_ws/src/robot/config/mapper_params_online_async.yaml
-    # ros2 launch robot navigation_launch.py
+ros2 launch robot slam_nav.launch.py
+    # includes: slam_toolbox (online async) + Nav2
 
-# Terminal 3 – Teleoperation (optional)
+# Terminal 3 – autonomous exploration mission (optional)
+ros2 launch robot explore.launch.py
+
+# Terminal 4 – Teleoperation (optional)
 ros2 run teleop_twist_keyboard teleop_twist_keyboard \
-  --ros-args -r /cmd_vel:=/cmd_vel_teleop
+  --ros-args -r /cmd_vel:=/cmd_vel_key
 ```
 
 ### Simulation (Gazebo Fortress)
@@ -287,8 +283,8 @@ ls -l /dev/serial/by-id/
 ros2 run tf2_tools view_frames
 
 # Monitor odometry
-ros2 topic echo /diff_cont/odom   # encoder crudo (entrada del EKF)
-ros2 topic echo /odom             # filtrado del EKF (remapeado de odometry/filtered)
+ros2 topic echo /diff_cont/odom   # raw encoder odometry (EKF input)
+ros2 topic echo /odom             # EKF output (remapped from odometry/filtered)
 
 # Check active controllers
 ros2 control list_controllers
@@ -304,15 +300,15 @@ ros2 doctor --report | grep middleware
 
 ---
 
-## Documentation Index PENDING
+## Documentation Index
 
 | Topic | Notion |
 |-------|--------|
-| Project overview | [Robot LiDAR 2025](https://www.notion.so/352ce5a2286e801ca74dd87a884d5030) |
+| Project overview | [Robot LiDAR 2026](https://www.notion.so/352ce5a2286e801ca74dd87a884d5030) |
 | LiDAR XV-11: hardware & ROS 2 driver | [→](https://www.notion.so/35dce5a2286e813eb580c0b12a64881d) |
 | SLAM with slam_toolbox | [→](https://www.notion.so/35dce5a2286e8166b38ccc4ba3ce74d2) |
 | Navigation: Nav2, AMCL, twist_mux | [→](https://www.notion.so/35dce5a2286e81e3b5fffb86fec89955) |
-| IMU MPU-9250: driver, Madgwick, EKF | [→](https://www.notion.so/35dce5a2286e813980cacd81f17b304d) |
+| IMU MPU-9250: driver & EKF | [→](https://www.notion.so/35dce5a2286e813980cacd81f17b304d) |
 | ros2_control & odometry calibration | [→](https://www.notion.so/35dce5a2286e81b1b145e80698665914) |
 | ESP32-S3 firmware (motor controller) | [→](https://www.notion.so/35bce5a2286e8088b98bc4f5186d5208) |
 | PI controller design | [→](https://www.notion.so/35ace5a2286e8000afc2db601cfca9d2) |
