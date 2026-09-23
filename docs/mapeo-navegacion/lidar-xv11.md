@@ -58,7 +58,7 @@ Existen al menos dos versiones principales de hardware. Para identificar la disp
 
 ![Sensor con bornera de alimentación de 5 V](./assets/xv11-identificacion-5v.jpg)
 
-*Identificación del sensor: alimentación de 5 V (versión más reciente).* [INCIERTO: fuente de la foto]
+*Identificación del sensor: alimentación de 5 V (versión más reciente).*
 
 ### Protocolo serial (firmware v2.6)
 
