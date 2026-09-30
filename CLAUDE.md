@@ -24,8 +24,26 @@ ros2 launch robot launch_robot.launch.py
 # SLAM + Nav2 (ejecutar después del anterior)
 ros2 launch robot slam_nav.launch.py
 
+# Los dos anteriores en una sola terminal (equivalente, no los reemplaza)
+ros2 launch robot bringup.launch.py
+
 # Exploración autónoma: undock + explore_lite + return_to_base (después de los dos anteriores)
 ros2 launch robot explore.launch.py
+```
+
+### `bringup.launch.py`
+Incluye `launch_robot.launch.py` y `slam_nav.launch.py` tal como están (no los
+modifica ni los duplica) para no ocupar dos terminales. SLAM + Nav2 arrancan
+recién cuando el hardware publica, no tras un timer fijo: `scripts/wait_for_hardware.py`
+corre en paralelo y espera a que aparezcan en el grafo ROS los nodos
+`/controller_manager`, `/diff_cont`, `/neato_laser` y publishers en `/scan` y `/odom`
+(el mismo criterio que usa el menú GUI). Si no confirma antes de
+`hardware_timeout` (default 60 s) avisa y arranca SLAM + Nav2 igual, porque la
+detección por grafo puede fallar por motivos ajenos al hardware. Ctrl+C baja
+todo junto. La exploración sigue yendo aparte (`explore.launch.py`).
+```bash
+ros2 launch robot bringup.launch.py
+ros2 launch robot bringup.launch.py hardware_timeout:=90.0   # arranque lento
 ```
 
 ### Menú GUI (`robot/scripts/robot_menu.py`)
@@ -56,7 +74,11 @@ pixi run python src\robot\scripts\robot_menu.py --ros-args -p ssh_host:=robot_li
   aparece como "activo (externo)".
 - **Herramientas** (locales, independientes): teleop en consola nueva (remapeado a
   `/cmd_vel_key`), `rviz2 -d nav.rviz`, `battery_monitor.py`, `odom_monitor.py`
-  (velocidad + pose odom/map).
+  (velocidad + pose odom/map). La consola nueva del teleop la da
+  `CREATE_NEW_CONSOLE` en Windows; en Linux se busca un emulador entre los
+  instalados (`LINUX_TERMINALS`: xterm, konsole, xfce4-terminal, kitty,
+  alacritty, gnome-terminal, x-terminal-emulator) y si no hay ninguno el
+  checkbox queda deshabilitado.
 - Salida de cada proceso en `<tmp>/robot_menu_<nombre>.log`.
 
 ## Arquitectura

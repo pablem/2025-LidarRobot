@@ -38,12 +38,16 @@ Grupos:
   Herramientas (locales, independientes): teleop en una consola nueva, rviz2,
   monitor de batería y monitor de odometría. Checked = proceso abierto.
   Teleop es interactivo: su consola nueva no se redirige a un log (necesita
-  teclado real), así que no deja rastro en <tmp>.
+  teclado real), así que no deja rastro en <tmp>. En Windows la consola nueva
+  la da CREATE_NEW_CONSOLE; en Linux hay que abrir un emulador de terminal, que
+  se elige entre los instalados (ver LINUX_TERMINALS). Si no hay ninguno, el
+  checkbox queda deshabilitado y el comando se escribe a mano en una terminal.
 
 La salida del resto de los procesos se guarda en <tmp>/robot_menu_<nombre>.log.
 """
 
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -51,6 +55,7 @@ import tempfile
 import threading
 import time
 import tkinter as tk
+import uuid
 from tkinter import ttk, messagebox
 
 import rclpy
@@ -273,6 +278,32 @@ class ChannelProc:
 
 # ── Ejecución de procesos locales ──────────────────────────────────────
 
+# Emuladores de terminal para abrir la consola del teleop en Linux, en orden
+# de preferencia: (binario, args antes del comando). Los que usan un proceso
+# servidor (gnome-terminal, xfce4-terminal, konsole) llevan el flag que hace
+# que el cliente espere al hijo; sin eso volvería enseguida y el menú daría el
+# teleop por terminado apenas se abre la ventana.
+LINUX_TERMINALS = [
+    ('xterm', ['-T', '{title}', '-e']),
+    ('konsole', ['--nofork', '-p', 'tabtitle={title}', '-e']),
+    ('xfce4-terminal', ['--disable-server', '-T', '{title}', '-x']),
+    ('kitty', ['-T', '{title}']),
+    ('alacritty', ['-t', '{title}', '-e']),
+    ('gnome-terminal', ['--wait', '--title', '{title}', '--']),
+    ('x-terminal-emulator', ['-T', '{title}', '-e']),
+]
+
+
+def _terminal_prefix(title):
+    """Prefijo de comando para abrir una consola nueva en Linux, o None si no
+    hay ningún emulador conocido instalado."""
+    for binary, args in LINUX_TERMINALS:
+        path = shutil.which(binary)
+        if path:
+            return [path] + [a.format(title=title) for a in args]
+    return None
+
+
 def _popen_kwargs(new_console=False):
     """Flags de creación según plataforma."""
     kw = {}
@@ -303,7 +334,7 @@ class ManagedProcess:
 
     def __init__(self, name, cmd=None, ready_check=None, remote_pattern=None,
                  remote_command=None, session=None, new_console=False,
-                 interactive=False):
+                 interactive=False, local_pattern=None, unavailable=None):
         self.name = name
         self.cmd = cmd
         self.ready_check = ready_check  # None → activo apenas arranca
@@ -315,6 +346,13 @@ class ManagedProcess:
         # True: no redirigir stdin/stdout a un log — el proceso necesita su
         # propia consola real para teclado interactivo (p. ej. teleop).
         self.interactive = interactive
+        # pkill -f local al detener: para consolas que corren el comando bajo
+        # un proceso servidor (gnome-terminal), donde matar al cliente no
+        # alcanza porque el proceso real no es hijo nuestro.
+        self.local_pattern = local_pattern
+        # Motivo por el que esta herramienta no se puede usar en esta PC
+        # (p. ej. ningún emulador de terminal instalado). None = disponible.
+        self.unavailable = unavailable
         self.proc = None
         self.state = OFF
         self.detail = ''
@@ -383,6 +421,13 @@ class ManagedProcess:
                 pass
         else:
             _kill_tree(self.proc)
+            self._pkill_local('INT')
+
+    def _pkill_local(self, sig_name):
+        if not self.local_pattern or IS_WINDOWS:
+            return
+        subprocess.run(['pkill', f'-{sig_name}', '-f', self.local_pattern],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def _escalate(self):
         """Pasados STOP_GRACE s sin cerrar: pkill remoto (en un hilo aparte,
@@ -399,6 +444,7 @@ class ManagedProcess:
             threading.Thread(target=_do, daemon=True).start()
         else:
             _kill_tree(self.proc, signal.SIGTERM if not IS_WINDOWS else None)
+            self._pkill_local('TERM')
 
     def _reap(self):
         self.proc.wait()
@@ -575,10 +621,24 @@ class MenuGui:
         py = sys.executable
         teleop = ['ros2', 'run', 'teleop_twist_keyboard', 'teleop_twist_keyboard',
                   '--ros-args', '-r', '/cmd_vel:=/cmd_vel_key']
+        teleop_pattern = teleop_missing = None
         if not IS_WINDOWS:
-            teleop = ['xterm', '-T', 'teleop_twist_keyboard', '-e'] + teleop
+            prefix = _terminal_prefix('teleop_twist_keyboard')
+            if prefix is None:
+                teleop_missing = 'sin terminal (instalá xterm)'
+            else:
+                # El teleop puede terminar colgando de un proceso servidor
+                # (gnome-terminal) y no de este proceso, así que al detenerlo
+                # hay que buscarlo por su línea de comandos. El tag es un
+                # parámetro ROS inocuo (el nodo lo ignora) que hace único ese
+                # patrón: sin él, un pkill -f alcanzaría cualquier otro teleop
+                # abierto a mano o al propio shell que lo lanzó.
+                tag = 'menu' + uuid.uuid4().hex[:8]
+                teleop = prefix + teleop + ['-p', f'menu_tag:={tag}']
+                teleop_pattern = f'menu_tag:={tag}'
         self.tools = [
-            ManagedProcess('teleop', teleop, new_console=True, interactive=True),
+            ManagedProcess('teleop', teleop, new_console=True, interactive=True,
+                           local_pattern=teleop_pattern, unavailable=teleop_missing),
             ManagedProcess('rviz', ['rviz2', '-d', os.path.normpath(RVIZ_CONFIG)]),
             ManagedProcess('battery', [py, os.path.join(SCRIPT_DIR, 'battery_monitor.py')]),
             ManagedProcess('odom', [py, os.path.join(SCRIPT_DIR, 'odom_monitor.py')]),
@@ -744,6 +804,11 @@ class MenuGui:
 
     def _refresh_tools(self):
         for p, row in zip(self.tools, self.tool_rows):
+            if p.unavailable:
+                row['var'].set(False)
+                row['status'].config(text=p.unavailable, fg=COLOR_ERROR)
+                row['cb'].state(['disabled'])
+                continue
             if p.poll(self.node):
                 # Cerrado por el usuario (rviz, consola) o murió: destildar.
                 # Una salida no-0 después de un rato es la ventana cerrada,

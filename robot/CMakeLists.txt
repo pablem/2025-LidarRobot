@@ -59,4 +59,10 @@ install(PROGRAMS
   RENAME robot_menu
 )
 
+install(PROGRAMS
+  scripts/wait_for_hardware.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME wait_for_hardware
+)
+
 ament_package()
