@@ -208,6 +208,12 @@ ros2 launch robot slam_nav.launch.py
 ros2 launch robot explore.launch.py
 ```
 
+> [!TIP]
+> Las dos primeras terminales pueden unirse en `ros2 launch robot bringup.launch.py`,
+> que incluye ambos launch y espera a que el hardware publique antes de arrancar
+> SLAM + Nav2 (ver [Navegación con Nav2](../mapeo-navegacion/nav2.md#las-dos-terminales-del-robot-en-una-sola)).
+> La exploración sigue yendo en su propia terminal.
+
 Compilar el explorador (una vez):
 
 ```bash

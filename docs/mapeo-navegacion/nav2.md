@@ -213,6 +213,31 @@ rviz2 -d ~/robotLidar/src/robot/config/nav.rviz
 ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r /cmd_vel:=/cmd_vel_key
 ```
 
+### Las dos terminales del robot en una sola
+
+`bringup.launch.py` incluye `launch_robot.launch.py` y `slam_nav.launch.py` tal
+como están (no los modifica ni duplica su contenido) y encadena el segundo al
+primero:
+
+```bash
+ros2 launch robot bringup.launch.py
+ros2 launch robot bringup.launch.py hardware_timeout:=90.0   # arranque lento
+```
+
+El encadenado no usa un timer fijo. `scripts/wait_for_hardware.py` corre en
+paralelo al hardware y termina apenas el grafo ROS muestra los nodos
+`/controller_manager`, `/diff_cont` y `/neato_laser` y publishers en `/scan` y
+`/odom`; recién entonces arrancan slam_toolbox y Nav2. Antes de eso slam_toolbox
+no tendría scans que procesar y Nav2 levantaría sin odometría. Si el hardware no
+confirma antes de `hardware_timeout` (60 s por defecto) avisa y arranca SLAM +
+Nav2 igual, porque la detección por grafo puede fallar por motivos ajenos al
+hardware. Ctrl+C baja todo junto.
+
+> [!NOTE]
+> El criterio de "hardware listo" es el mismo que usa el menú GUI
+> ([menú en Windows y Linux](../simulacion/rviz2-windows-robostack.md#nuevo-menu-gui-en-windows-y-linux)),
+> así que los dos caminos esperan lo mismo.
+
 Goal por CLI (útil para ensayos repetitivos; el guardado de mapa está en SLAM):
 
 ```bash

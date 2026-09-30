@@ -61,9 +61,10 @@ Main robot package. Contains launchers, URDF/Xacro description, and all configur
 
 | Directory | Contents |
 |-----------|----------|
-| `launch/` | `launch_robot.launch.py` (real robot), `slam_nav.launch.py` (SLAM + Nav2), `explore.launch.py` (autonomous exploration), `launch_sim.launch.py` (Gazebo) |
+| `launch/` | `launch_robot.launch.py` (real robot), `slam_nav.launch.py` (SLAM + Nav2), `bringup.launch.py` (the previous two in a single terminal), `explore.launch.py` (autonomous exploration), `launch_sim.launch.py` (Gazebo) |
 | `description/` | `robot.urdf.xacro`, `ros2_control.xacro`, `lidar.xacro`, `imu.xacro` |
 | `config/` | `my_controllers.yaml`, `mapper_params_online_async.yaml`, `navegation2_params_waffle_mod.yaml`, `ekf.yaml`, `twist_mux.yaml`, RViz2 configs |
+| `scripts/` | `robot_menu.py` (GUI menu, runs on the PC), `battery_monitor.py`, `odom_monitor.py`, `undock.py`, `return_to_base.py`, `wait_for_hardware.py` |
 
 Forked from: [joshnewans/my_bot](https://github.com/joshnewans/my_bot)
 
@@ -255,6 +256,43 @@ ros2 launch robot explore.launch.py
 # Terminal 4 – Teleoperation (optional)
 ros2 run teleop_twist_keyboard teleop_twist_keyboard \
   --ros-args -r /cmd_vel:=/cmd_vel_key
+```
+
+#### Single terminal
+
+`bringup.launch.py` includes the first two launch files above as they are, so the
+whole stack fits in one terminal. SLAM + Nav2 do not start after a fixed delay:
+`wait_for_hardware` polls the ROS graph until `/controller_manager`, `/diff_cont`
+and `/neato_laser` are up and `/scan` and `/odom` have publishers. If that is not
+confirmed within `hardware_timeout` it warns and starts them anyway. Ctrl+C stops
+everything; exploration still goes in its own terminal.
+
+```bash
+ros2 launch robot bringup.launch.py
+ros2 launch robot bringup.launch.py hardware_timeout:=90.0   # slow startup
+```
+
+### GUI menu (runs on the PC)
+
+`robot_menu.py` drives the whole stack from a single Tkinter window instead of
+several terminals. It runs on the workstation, not on the headless Raspberry Pi:
+the stack launchers and the LiDAR motor are executed on the robot over SSH
+(password authentication via `paramiko`), while the tools (teleop, RViz2, battery
+and odometry monitors) run locally and talk over DDS. Each stack checkbox is
+enabled only once the previous one is confirmed **on the ROS graph**, and
+unchecking one sends Ctrl+C to the remote launch and cascades to its dependents.
+
+`ssh_password` is mandatory; `ssh_host` defaults to `robot_lidar@10.57.245.137`.
+
+```bash
+# Linux
+ros2 run robot robot_menu --ros-args -p ssh_password:=<password>
+
+# Windows (RoboStack/pixi shell, from ~/robotLidar)
+pixi run python src\robot\scripts\robot_menu.py --ros-args -p ssh_password:=<password>
+
+# Another host or remote workspace
+... --ros-args -p ssh_host:=robot_lidar@10.57.245.137 -p ssh_password:=<password> -p remote_ws:=~/robotLidar
 ```
 
 ### Simulation (Gazebo Fortress)

@@ -358,9 +358,25 @@ Esta organización tiene además una justificación de diseño: deja `robot` com
 
 Con esta nueva ventaja en mente: ejecutar interfaces gráficas con un sólo script de python que se puedan ejecutar en ambas plataformas, se creó un menú capaz de conectarse por ssh y lanzar los nodos y aplicaciones de interés desde una sola ventana.
 
+En Windows, desde `~/robotLidar` en el shell de pixi:
+
 ```powershell
 pixi run python src\robot\scripts\robot_menu.py --ros-args -p ssh_host:=robot_lidar@10.57.245.137 -p ssh_password:=pi
 ```
+
+El mismo script corre en una PC con Ubuntu nativo, con el workspace compilado y
+activado (`source ~/robotLidar/install/setup.bash`):
+
+```bash
+ros2 run robot robot_menu --ros-args -p ssh_password:=pi
+# equivalente, sin compilar el workspace:
+python3 ~/robotLidar/src/robot/scripts/robot_menu.py --ros-args -p ssh_password:=pi
+```
+
+`ssh_password` es obligatorio: si falta, el menú avisa por consola y no arranca
+(no hay diálogo de login, porque un `Toplevel` con `grab_set()` anidado se colgaba
+sin mostrarse en Windows). `ssh_host` tiene default `robot_lidar@10.57.245.137` y
+`remote_ws` default `~/robotLidar`.
 
 ![](./assets/rviz2-windows-robostack-2.png)
 
@@ -378,7 +394,7 @@ Los comandos que envía cada casilla son:
 
 **Herramientas locales**
 
-- *Teleop teclado*: `ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r /cmd_vel:=/cmd_vel_key` — control manual por teclado en una consola aparte.
+- *Teleop teclado*: `ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r /cmd_vel:=/cmd_vel_key` — control manual por teclado en una consola aparte. Esa consola la da `CREATE_NEW_CONSOLE` en Windows; en Linux hace falta un emulador de terminal, que se busca entre los instalados (xterm, konsole, xfce4-terminal, kitty, alacritty, gnome-terminal, x-terminal-emulator) y si no hay ninguno la casilla queda deshabilitada.
 - *RViz2*: `rviz2 -d nav.rviz` — visualización del mapa, sensores y navegación.
 - *Monitor de batería*: `ros2 run robot battery_monitor` — voltaje y autonomía estimada.
 - *Monitor de velocidad y pose*: muestra velocidad lineal/angular y la posición del robot en los frames odom y map.

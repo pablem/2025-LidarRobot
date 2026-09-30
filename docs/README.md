@@ -60,4 +60,4 @@ Documentado en el repositorio del firmware:
 
 - [Simulaciones en Gazebo Fortress](./simulacion/gazebo-fortress.md)
 - [Simulaciones en Windows con WSL2](./simulacion/windows-wsl2.md)
-- [RViz2 en Windows con RoboStack mediante Pixi](./simulacion/rviz2-windows-robostack.md)
+- [RViz2 en Windows con RoboStack mediante Pixi](./simulacion/rviz2-windows-robostack.md): estación de trabajo y menú GUI de operación (Windows y Linux).
