@@ -13,6 +13,7 @@
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>twist_mux</exec_depend>
   <exec_depend>robot_localization</exec_depend>
+  <exec_depend>nav2_common</exec_depend>
   <!-- GUIs (robot_menu, battery_monitor, odom_monitor) -->
   <exec_depend>python3-tk</exec_depend>
   <exec_depend>rclpy</exec_depend>

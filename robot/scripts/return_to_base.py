@@ -45,6 +45,7 @@ class ReturnToBase(Node):
         self.declare_parameter('dock_startup_delay', 1.0) # s — espera tras goal Nav2 antes de retroceder
         self.declare_parameter('dock_cmd_vel_topic', 'cmd_vel')  # entrada de twist_mux (prioridad navigation)
         self.declare_parameter('dock_publish_rate', 20.0)        # Hz de republicación del Twist (timeout twist_mux = 0.5s)
+        self.declare_parameter('goal_retry_delay', 3.0)          # s — espera antes de reintentar si Nav2 aborta el goal
         # ─────────────────────────────────────────────────────────────────
 
         self.exploration_time      = self.get_parameter('exploration_time').value
@@ -61,11 +62,12 @@ class ReturnToBase(Node):
         self.dock_startup_delay    = self.get_parameter('dock_startup_delay').value
         self.dock_cmd_vel_topic    = self.get_parameter('dock_cmd_vel_topic').value
         self.dock_publish_rate     = self.get_parameter('dock_publish_rate').value
+        self.goal_retry_delay      = self.get_parameter('goal_retry_delay').value
 
         self._returning          = False
         self._nav_was_active     = False  # Nav2 tuvo al menos un goal activo
         self._last_active_time   = self.get_clock().now()
-        self._update_timer       = None
+        self._retry_timer        = None
 
         self._nav_client    = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self._map_client    = self.create_client(SerializePoseGraph, '/slam_toolbox/serialize_map')
@@ -164,8 +166,11 @@ class ReturnToBase(Node):
             self.get_logger().error('[return_to_base] Nav2 no disponible, abortando.')
             return
 
+        # Se manda UNA vez: el goal está en frame map, así que Nav2 ya lo sigue
+        # aunque SLAM corrija map→odom. Antes se re-enviaba cada 3 s; cada
+        # re-envío preemptaba el BT y cortaba las recuperaciones a mitad
+        # (spin abortado → spin nuevo, encadenados). Solo se reintenta si aborta.
         self._send_home_goal(self.dock_x_offset, 0.0, initial=True)
-        self._update_timer = self.create_timer(3.0, self._update_home_goal)
 
     def _send_home_goal(self, x, y, initial=False):
         goal = NavigateToPose.Goal()
@@ -185,7 +190,9 @@ class ReturnToBase(Node):
         future = self._nav_client.send_goal_async(goal)
         future.add_done_callback(self._on_goal_accepted)
 
-    def _update_home_goal(self):
+    def _retry_home_goal(self):
+        self._retry_timer.cancel()
+        self._retry_timer = None
         self._send_home_goal(self.dock_x_offset, 0.0)
 
     def _on_goal_accepted(self, future):
@@ -200,17 +207,14 @@ class ReturnToBase(Node):
     def _on_goal_reached(self, future):
         result = future.result()
         if result.status == GoalStatus.STATUS_SUCCEEDED:
-            if self._update_timer:
-                self._update_timer.cancel()
-                self._update_timer = None
             self.get_logger().info('[return_to_base] ¡Punto de dock alcanzado! Iniciando maniobra de retroceso...')
             self._do_dock_reverse()
-        elif result.status == GoalStatus.STATUS_CANCELED:
-            pass  #  _update_home_goal — el nuevo goal manejará el resultado
-        # else:
-        #     self.get_logger().warn(
-        #         f'[return_to_base] Navegación terminó con status {result.status}.'
-        #     )
+        elif self._retry_timer is None:
+            self.get_logger().warn(
+                f'[return_to_base] Navegación terminó con status {result.status}. '
+                f'Reintentando en {self.goal_retry_delay:.0f}s...'
+            )
+            self._retry_timer = self.create_timer(self.goal_retry_delay, self._retry_home_goal)
 
     # ── 8. Maniobra de retroceso al dock (open-loop por /cmd_vel) ─────────
     # A diferencia de la acción Nav2 BackUp, esto NO chequea colisiones contra

@@ -126,6 +126,14 @@ Usa **`explore_lite`** del paquete `m-explore-ros2`. Probado el 2026-05-19, func
 - Dos warnings `BehaviorTree tick rate 100.00 exceeded` son esperables en Raspberry Pi bajo carga.
 - Al hacer Ctrl+C el goal en curso se cancela limpiamente.
 
+### Recuperaciones de Nav2 sin Spin
+El BT es `robot/config/nav_to_pose_no_spin.xml` (el default de Humble sin `Spin`); `slam_nav.launch.py`
+inyecta su ruta absoluta en `default_nav_to_pose_bt_xml`. El spin de 90° a `max_rotational_vel` era el
+"giro a toda velocidad" esporádico: al alinear el yaw final cerca del dock, el `SimpleProgressChecker`
+(solo mide desplazamiento) abortaba y la recuperación giraba. Además `return_to_base.py` manda el goal
+del dock una sola vez y solo lo reintenta si Nav2 lo aborta (`goal_retry_delay`); antes lo re-enviaba
+cada 3 s y cada preempción cortaba la recuperación en curso.
+
 ### Parámetros clave (`m-explore-ros2/explore/config/params.yaml`)
 | Parámetro | Valor | Descripción |
 |---|---|---|

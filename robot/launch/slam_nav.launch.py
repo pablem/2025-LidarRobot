@@ -5,6 +5,7 @@ from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, TimerAction, DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from nav2_common.launch import RewrittenYaml
 
 
 def generate_launch_description():
@@ -28,13 +29,23 @@ def generate_launch_description():
     )
 
     # ── Nav2 ─────────────────────────────────
+    # El BT propio (sin Spin) necesita ruta absoluta; se inyecta acá para no
+    # hardcodear la ruta del workspace en el yaml.
+    nav2_params = RewrittenYaml(
+        source_file=os.path.join(pkg_share, 'config', 'navegation2_params_waffle_mod.yaml'),
+        param_rewrites={
+            'default_nav_to_pose_bt_xml': os.path.join(pkg_share, 'config', 'nav_to_pose_no_spin.xml'),
+        },
+        convert_types=True,
+    )
+
     nav2 = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
             get_package_share_directory('nav2_bringup'),
             'launch', 'navigation_launch.py'
         )]),
         launch_arguments={
-            'params_file': os.path.join(pkg_share, 'config', 'navegation2_params_waffle_mod.yaml'),
+            'params_file': nav2_params,
             'use_sim_time': use_sim_time,
             # 'use_respawn': 'true',   # relanza nodos caídos de Nav2
         }.items()

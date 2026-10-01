@@ -89,8 +89,10 @@ bt_navigator:
     global_frame: map
     robot_base_frame: base_link
     odom_topic: /odom
-    # en Humble: el nombre correcto lleva "to_pose"
-    default_bt_xml_filename: "navigate_to_pose_w_replanning_and_recovery.xml"
+    # En Humble la clave es default_nav_to_pose_bt_xml (default_bt_xml_filename era
+    # de Foxy y se ignoraba). Ruta absoluta: slam_nav.launch.py la reescribe con la
+    # del paquete (config/nav_to_pose_no_spin.xml, BT por defecto sin Spin).
+    default_nav_to_pose_bt_xml: "nav_to_pose_no_spin.xml"
     bt_loop_duration: 10
     default_server_timeout: 20
     # Groot: visualizador del árbol de comportamiento
@@ -159,7 +161,9 @@ controller_server:
       plugin: "nav2_controller::SimpleProgressChecker"
       # Distancia mínima que debe recorrer el robot en movement_time_allowance segundos.
       required_movement_radius: 0.3
-      movement_time_allowance: 12.0
+      # Solo mide desplazamiento: girar en el lugar (alinear yaw final) no cuenta
+      # como progreso. 20 s (antes 12) da margen a la alineación cerca del goal.
+      movement_time_allowance: 20.0
 
     general_goal_checker:
       stateful: True
@@ -168,7 +172,10 @@ controller_server:
       # ── TOLERANCIA DE LLEGADA AL OBJETIVO ────────────────────────────────
       # Tolerancia al llegar al goal (radianes). 0.25 rad ≈ 14°.
       xy_goal_tolerance: 0.05 # 0.10 
-      yaw_goal_tolerance: 0.03  # 0.05 — yaw más fino
+      yaw_goal_tolerance: 0.06  # antes 0.03: tan fino que la alineación final se trababa
+                                # (giros muy lentos que los motores no ejecutan) → "Failed to
+                                # make progress" → spin. 0.06 rad ≈ 2.9 cm laterales en el
+                                # retroceso de 0.48 m al dock.
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
