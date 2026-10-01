@@ -27,6 +27,7 @@
 #include "rclcpp/duration.hpp"
 #include "rclcpp/macros.hpp"
 #include "rclcpp/node.hpp"
+#include "rclcpp/clock.hpp"
 #include "rclcpp/publisher.hpp"
 #include "rclcpp/time.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
@@ -61,6 +62,8 @@ struct Config
   double battery_voltage_max = 16.8;
   double battery_runtime_full_min = 120.0;  // autonomia a plena carga (uso intensivo), en minutos
   double battery_publish_period = 60.0;     // segundos entre lecturas/publicaciones de bateria
+  double max_wheel_vel = 20.0;              // rad/s; un salto de encoder mayor se descarta como lectura corrupta
+  int max_rejected_reads = 10;              // lecturas descartadas seguidas antes de re-sincronizar
 };
 
 
@@ -116,6 +119,12 @@ private:
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr battery_time_pub_;
   rclcpp::Time last_battery_read_;
   bool battery_read_initialized_ = false;
+
+  // Validación de encoders (ver read())
+  bool enc_initialized_ = false;
+  int rejected_reads_ = 0;
+  double pending_dt_ = 0.0;
+  rclcpp::Clock steady_clock_{RCL_STEADY_TIME};
 };
 
 }  // namespace diffdrive_arduino

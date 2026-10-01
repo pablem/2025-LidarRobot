@@ -56,7 +56,7 @@ def generate_launch_description():
             'overwrite_map': True,
             # Maniobra de docking: navega a (dock_x_offset, 0) y retrocede al dock
             'dock_x_offset': 0.40,      # metros delante del dock
-            'dock_reverse_dist': 0.40,  # metros de retroceso final
+            'dock_reverse_dist': 0.47,  # metros de retroceso final
             'dock_speed': 0.10,         # m/s
             'battery_topic': '', #'''/battery_state',
             'battery_threshold': 12.40,  # voltaje (V) del pack

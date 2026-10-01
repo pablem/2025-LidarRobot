@@ -86,7 +86,7 @@ pixi run python src\robot\scripts\robot_menu.py --ros-args -p ssh_host:=robot_li
 Cinco paquetes:
 
 - **`robot/`** — Launch files, URDF/xacro, configs. Sin código ejecutable.
-- **`diffdrive_arduino/`** — Plugin `ros2_control` (`DiffDriveArduinoHardware`) que se comunica con un ESP32 por serial. Lee encoders (`e\r`), envía comandos de motor (`m val1 val2\r`) y lee la tensión de batería (`b\r`). Publica `sensor_msgs/msg/BatteryState` en `/battery_state` y minutos restantes estimados en `/battery_time_remaining` (ver "Sensor de batería").
+- **`diffdrive_arduino/`** — Plugin `ros2_control` (`DiffDriveArduinoHardware`) que se comunica con un ESP32 por serial. Lee encoders (`e\r`), envía comandos de motor (`m val1 val2\r`) y lee la tensión de batería (`b\r`). Las lecturas de encoder malformadas (timeout, línea cortada) o con saltos imposibles (> `max_wheel_vel`, default 20 rad/s) se descartan; si el salto persiste `max_rejected_reads` ciclos (default 10) se re-sincroniza sin mover la odometría. Publica `sensor_msgs/msg/BatteryState` en `/battery_state` y minutos restantes estimados en `/battery_time_remaining` (ver "Sensor de batería").
 - **`xv_11_laser_driver/`** — Nodo ROS 2 (`neato_laser_publisher`) que lee un LiDAR Neato XV-11 via serial (Arduino Leonardo) y publica `sensor_msgs/LaserScan` en `/scan`.
 - **`m-explore-ros2/`** — Exploración autónoma de fronteras (`explore_lite`). Detecta fronteras en el costmap de Nav2 y envía goals via `NavigateToPose`. Probado y funciona.
 - **`serial/`** — Librería C++ de serial de terceros, usada por `diffdrive_arduino`.

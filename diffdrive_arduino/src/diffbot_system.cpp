@@ -73,6 +73,14 @@ hardware_interface::CallbackReturn DiffDriveArduinoHardware::on_init(
   {
     cfg_.battery_publish_period = std::stod(info_.hardware_parameters["battery_publish_period"]);
   }
+  if (info_.hardware_parameters.count("max_wheel_vel") > 0)
+  {
+    cfg_.max_wheel_vel = std::stod(info_.hardware_parameters["max_wheel_vel"]);
+  }
+  if (info_.hardware_parameters.count("max_rejected_reads") > 0)
+  {
+    cfg_.max_rejected_reads = std::stoi(info_.hardware_parameters["max_rejected_reads"]);
+  }
 
 
   wheel_l_.setup(cfg_.left_wheel_name, cfg_.enc_counts_per_rev_left);
@@ -209,6 +217,9 @@ hardware_interface::CallbackReturn DiffDriveArduinoHardware::on_activate(
   {
     comms_.set_pid_values(cfg_.pid_p,cfg_.pid_d,cfg_.pid_i,cfg_.pid_o);
   }
+  enc_initialized_ = false;
+  rejected_reads_ = 0;
+  pending_dt_ = 0.0;
   RCLCPP_INFO(rclcpp::get_logger("DiffDriveArduinoHardware"), "Successfully activated!");
 
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -231,7 +242,9 @@ hardware_interface::return_type DiffDriveArduinoHardware::read(
     return hardware_interface::return_type::ERROR;
   }
 
-  comms_.read_encoder_values(wheel_l_.enc, wheel_r_.enc);
+  int enc_l = 0;
+  int enc_r = 0;
+  const bool enc_ok = comms_.read_encoder_values(enc_l, enc_r);
 
   // lectura periodica beteria 
   if (!battery_read_initialized_ ||
@@ -242,15 +255,74 @@ hardware_interface::return_type DiffDriveArduinoHardware::read(
     publish_battery_state(time);
   }
 
-  double delta_seconds = period.seconds();
+  // Tiempo desde la última lectura aceptada (incluye ciclos descartados), para
+  // que el delta de encoder acumulado no se convierta en un pico de velocidad.
+  double delta_seconds = period.seconds() + pending_dt_;
 
-  double pos_prev = wheel_l_.pos;
-  wheel_l_.pos = wheel_l_.calc_enc_angle();
-  wheel_l_.vel = (wheel_l_.pos - pos_prev) / delta_seconds;
+  if (!enc_ok)
+  {
+    // Respuesta corrupta o timeout: se conservan pos/vel del ciclo anterior.
+    pending_dt_ = delta_seconds;
+    RCLCPP_WARN_THROTTLE(
+      rclcpp::get_logger("DiffDriveArduinoHardware"), steady_clock_, 5000,
+      "Lectura de encoders inválida, descartada");
+    return hardware_interface::return_type::OK;
+  }
 
-  pos_prev = wheel_r_.pos;
-  wheel_r_.pos = wheel_r_.calc_enc_angle();
-  wheel_r_.vel = (wheel_r_.pos - pos_prev) / delta_seconds;
+  if (!enc_initialized_)
+  {
+    // Primera lectura: solo fija la referencia.
+    wheel_l_.enc = enc_l;
+    wheel_r_.enc = enc_r;
+    enc_initialized_ = true;
+    pending_dt_ = 0.0;
+    return hardware_interface::return_type::OK;
+  }
+
+  const double d_pos_l = (enc_l - wheel_l_.enc) * wheel_l_.rads_per_count;
+  const double d_pos_r = (enc_r - wheel_r_.enc) * wheel_r_.rads_per_count;
+  const double max_d_pos = cfg_.max_wheel_vel * delta_seconds;
+
+  if (std::abs(d_pos_l) > max_d_pos || std::abs(d_pos_r) > max_d_pos)
+  {
+    if (++rejected_reads_ < cfg_.max_rejected_reads)
+    {
+      // Salto físicamente imposible: lectura descartada.
+      pending_dt_ = delta_seconds;
+      RCLCPP_WARN_THROTTLE(
+        rclcpp::get_logger("DiffDriveArduinoHardware"), steady_clock_, 5000,
+        "Salto de encoder imposible descartado (L %+.1f rad, R %+.1f rad en %.3f s)",
+        d_pos_l, d_pos_r, delta_seconds);
+      return hardware_interface::return_type::OK;
+    }
+    // El salto persiste (p. ej. el ESP32 se reinició y sus contadores volvieron a 0):
+    // se adopta la lectura como nueva referencia sin mover pos, así la odometría
+    // no registra el salto.
+    RCLCPP_WARN(
+      rclcpp::get_logger("DiffDriveArduinoHardware"),
+      "Encoders re-sincronizados tras %d lecturas descartadas (L %d→%d, R %d→%d)",
+      rejected_reads_, wheel_l_.enc, enc_l, wheel_r_.enc, enc_r);
+    wheel_l_.enc = enc_l;
+    wheel_r_.enc = enc_r;
+    wheel_l_.vel = 0.0;
+    wheel_r_.vel = 0.0;
+    rejected_reads_ = 0;
+    pending_dt_ = 0.0;
+    return hardware_interface::return_type::OK;
+  }
+
+  rejected_reads_ = 0;
+  pending_dt_ = 0.0;
+
+  // pos se acumula por deltas (no enc * rads_per_count) para que una
+  // re-sincronización no la haga saltar.
+  wheel_l_.enc = enc_l;
+  wheel_l_.pos += d_pos_l;
+  wheel_l_.vel = d_pos_l / delta_seconds;
+
+  wheel_r_.enc = enc_r;
+  wheel_r_.pos += d_pos_r;
+  wheel_r_.vel = d_pos_r / delta_seconds;
 
   return hardware_interface::return_type::OK;
 }

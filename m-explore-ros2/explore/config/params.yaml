@@ -9,7 +9,7 @@
     costmap_updates_topic: map_updates
     visualize: true                     # publica fronteras en /explore/frontiers para RViz
     planner_frequency: 0.10              # Hz — 10s entre evaluaciones; espera que actualice costmap
-    progress_timeout: 110.0              # s — sin avance → blacklist del goal
+    progress_timeout: 90.0              # s — sin avance → blacklist del goal
     potential_scale: 4.0                # subido de 3.0: penaliza más la distancia → prefiere fronteras cercanas y explora incremental.
                                         # evita el flood de worldToMap failed (meta sobre el límite del costmap).
     orientation_scale: 0.0              # no implementado, dejar en 0

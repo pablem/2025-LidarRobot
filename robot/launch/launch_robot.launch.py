@@ -64,29 +64,20 @@ def generate_launch_description():
         name='encoder_reset',
     )
 
-    diff_drive_spawner = Node(
+    # Un solo spawner para los dos controladores: los carga en secuencia en vez de
+    # competir por los servicios del controller_manager. Con dos spawners en paralelo
+    # y la Raspberry cargada, joint_broad agotó sus 3 intentos de 10 s (2026-10-01)
+    # → sin /joint_states → sin TF de ruedas en RViz. Timeout ampliado por la misma razón.
+    controllers_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["diff_cont"],
+        arguments=["diff_cont", "joint_broad", "--service-call-timeout", "30"],
     )
 
-    delayed_diff_drive_spawner = RegisterEventHandler(
+    delayed_controllers_spawner = RegisterEventHandler(
         event_handler=OnProcessStart(
             target_action=controller_manager,
-            on_start=[diff_drive_spawner],
-        )
-    )
-
-    joint_broad_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["joint_broad"],
-    )
-
-    delayed_joint_broad_spawner = RegisterEventHandler(
-        event_handler=OnProcessStart(
-            target_action=controller_manager,
-            on_start=[joint_broad_spawner],
+            on_start=[controllers_spawner],
         )
     )
 
@@ -206,8 +197,7 @@ def generate_launch_description():
         motor_on_after_lidar,
         # motor_off_on_shutdown,
         delayed_controller_manager,
-        delayed_diff_drive_spawner,
-        delayed_joint_broad_spawner,
+        delayed_controllers_spawner,
         mpu9250_driver,
         # delayed_madgwick,
         delayed_ekf,

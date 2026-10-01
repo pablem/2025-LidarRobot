@@ -3,7 +3,9 @@
 
 // #include <cstring>
 #include <sstream>
-// #include <cstdlib>
+#include <cerrno>
+#include <climits>
+#include <cstdlib>
 #include <libserial/SerialPort.h>
 #include <iostream>
 
@@ -84,17 +86,32 @@ public:
     std::string response = send_msg("\r");
   }
 
-  void read_encoder_values(int &val_1, int &val_2)
+  // Devuelve false si la respuesta no es exactamente "<int> <int>\r\n" (timeout →
+  // vacía, línea cortada o mezclada con otra respuesta). En ese caso val_1/val_2
+  // no se tocan: antes atoi("") daba 0 y la odometría veía un salto enorme.
+  bool read_encoder_values(int &val_1, int &val_2)
   {
     std::string response = send_msg("e\r");
 
-    std::string delimiter = " ";
-    size_t del_pos = response.find(delimiter);
-    std::string token_1 = response.substr(0, del_pos);
-    std::string token_2 = response.substr(del_pos + delimiter.length());
+    const char *start = response.c_str();
+    char *end_1 = nullptr;
+    errno = 0;
+    long v1 = std::strtol(start, &end_1, 10);
+    if (end_1 == start || *end_1 != ' ' || errno == ERANGE) return false;
 
-    val_1 = std::atoi(token_1.c_str());
-    val_2 = std::atoi(token_2.c_str());
+    char *end_2 = nullptr;
+    long v2 = std::strtol(end_1, &end_2, 10);
+    if (end_2 == end_1 || errno == ERANGE) return false;
+
+    for (const char *c = end_2; *c != '\0'; ++c)
+    {
+      if (*c != '\r' && *c != '\n') return false;
+    }
+    if (v1 < INT_MIN || v1 > INT_MAX || v2 < INT_MIN || v2 > INT_MAX) return false;
+
+    val_1 = static_cast<int>(v1);
+    val_2 = static_cast<int>(v2);
+    return true;
   }
   float read_battery_voltage()
   {
