@@ -3,9 +3,11 @@ import os
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler
+from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
 
@@ -29,12 +31,26 @@ def generate_launch_description():
         launch_arguments={'use_sim_time': 'true', 'sim_mode': 'true'}.items()
     )
 
+    # headless:=true corre solo el servidor de Gazebo (-s), sin la ventana.
+    headless = LaunchConfiguration('headless')
+    declare_headless = DeclareLaunchArgument(
+        'headless', default_value='false',
+        description='true: Gazebo sin GUI (solo servidor), para ahorrar recursos'
+    )
+
     # Gazebo Fortress con el mundo de obstáculos (-r: corre al iniciar)
     world = os.path.join(pkg_share, 'worlds', 'obstacles2_gz.sdf')
+    gz_launch = os.path.join(
+        get_package_share_directory('ros_gz_sim'), 'launch', 'gz_sim.launch.py')
     gz_sim = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory('ros_gz_sim'), 'launch', 'gz_sim.launch.py')]),
-        launch_arguments={'gz_args': ['-r -v4 ', world]}.items()
+        PythonLaunchDescriptionSource([gz_launch]),
+        launch_arguments={'gz_args': ['-r -v4 ', world]}.items(),
+        condition=UnlessCondition(headless)
+    )
+    gz_sim_headless = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([gz_launch]),
+        launch_arguments={'gz_args': ['-r -s -v4 ', world]}.items(),
+        condition=IfCondition(headless)
     )
 
     # Spawnea el robot desde /robot_description
@@ -109,8 +125,10 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        declare_headless,
         rsp,
         gz_sim,
+        gz_sim_headless,
         spawn_entity,
         bridge,
         twist_mux,
