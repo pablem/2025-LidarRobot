@@ -158,4 +158,3 @@ colcon build --symlink-install \
     --packages-select robot explore_lite explore_lite_msgs
 append_bashrc_once "source ${WORKSPACE}/install/setup.bash"
 log "Compilación finalizada."
-EOF
